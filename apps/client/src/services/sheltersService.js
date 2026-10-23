@@ -180,5 +180,78 @@ export const sheltersService = {
         isMock: false
       };
     }
+  },
+
+  async updateStatus(id, { isOpen, urgencyLevel }, { forceMock = false } = {}) {
+    if (forceMock) {
+      inMemoryShelters = inMemoryShelters.map((s) => {
+        if (s.id === id) {
+          const updated = { ...s };
+          if (isOpen !== undefined) updated.isOpen = isOpen;
+          if (urgencyLevel) updated.urgencyLevel = urgencyLevel;
+          return updated;
+        }
+        return s;
+      });
+      const updated = inMemoryShelters.find((s) => s.id === id);
+      return { success: true, data: updated, isMock: true };
+    }
+
+    try {
+      const payload = {};
+      if (isOpen !== undefined) payload.isOpen = isOpen;
+      if (urgencyLevel) payload.urgencyLevel = urgencyLevel;
+      const res = await apiClient.patch(`/shelters/${id}/status`, payload);
+      return { success: true, data: res.data?.data || res.data, isMock: false };
+    } catch {
+      inMemoryShelters = inMemoryShelters.map((s) => {
+        if (s.id === id) {
+          const updated = { ...s };
+          if (isOpen !== undefined) updated.isOpen = isOpen;
+          if (urgencyLevel) updated.urgencyLevel = urgencyLevel;
+          return updated;
+        }
+        return s;
+      });
+      const updated = inMemoryShelters.find((s) => s.id === id);
+      return { success: true, data: updated, isMock: true };
+    }
+  },
+
+  async updateDemand(id, { currentDemand, receivingCapacity, mealsNeededPerDay }, { forceMock = false } = {}) {
+    if (forceMock) {
+      inMemoryShelters = inMemoryShelters.map((s) => {
+        if (s.id === id) {
+          const updated = { ...s };
+          if (currentDemand !== undefined) updated.currentDemand = currentDemand;
+          if (receivingCapacity !== undefined) updated.receivingCapacity = receivingCapacity;
+          return updated;
+        }
+        return s;
+      });
+      const updated = inMemoryShelters.find((s) => s.id === id);
+      return { success: true, data: updated, isMock: true };
+    }
+
+    try {
+      const payload = {};
+      if (currentDemand !== undefined) payload.currentDemand = currentDemand;
+      if (receivingCapacity !== undefined) payload.receivingCapacity = receivingCapacity;
+      if (mealsNeededPerDay !== undefined) payload.mealsNeededPerDay = mealsNeededPerDay;
+      const res = await apiClient.patch(`/shelters/${id}/demand`, payload);
+      return { success: true, data: res.data?.data || res.data, isMock: false };
+    } catch {
+      inMemoryShelters = inMemoryShelters.map((s) => {
+        if (s.id === id) {
+          const updated = { ...s };
+          if (currentDemand !== undefined) updated.currentDemand = currentDemand;
+          if (receivingCapacity !== undefined) updated.receivingCapacity = receivingCapacity;
+          return updated;
+        }
+        return s;
+      });
+      const updated = inMemoryShelters.find((s) => s.id === id);
+      return { success: true, data: updated, isMock: true };
+    }
   }
 };

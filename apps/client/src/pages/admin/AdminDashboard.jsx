@@ -6,6 +6,8 @@ import { sheltersService } from '../../services/sheltersService.js';
 import { ridersService } from '../../services/ridersService.js';
 import { assignmentsService } from '../../services/assignmentsService.js';
 import { analyticsService } from '../../services/analyticsService.js';
+import { eventsService } from '../../services/eventsService.js';
+import { connectSocket, subscribeToEvent } from '../../services/socket.js';
 import { MetricCard } from '../../components/ui/Card.jsx';
 import { StatusBadge, UrgencyBadge, CategoryBadge, Badge } from '../../components/ui/Badge.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFilter } from '../../components/ui/Table.jsx';
@@ -14,7 +16,7 @@ import { LoadingState, EmptyState, ErrorState } from '../../components/ui/States
 import { MapPreview } from '../../components/MapPreview.jsx';
 import { AssignmentStateMachineVisualizer } from '../../components/AssignmentStateMachineVisualizer.jsx';
 import { ASSIGNMENT_STATUS, SOCKET_EVENTS } from '@aidflow/shared';
-import { subscribeToEvent } from '../../services/socket.js';
+import { connectSocket, subscribeToEvent } from '../../services/socket.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import {
   Package,
@@ -49,83 +51,24 @@ export function AdminDashboard() {
   const [assignments, setAssignments] = useState([]);
   const [filterQuery, setFilterQuery] = useState('');
 
-  // Unresolved Operational Alerts State
-  const [alerts, setAlerts] = useState([
-    {
-      id: 'alt_01',
-      title: 'High Urgency Shelter Surge: Downtown Hope Refuge',
-      description: 'Shelter reached 88% bed occupancy and reported understocked meal pantry (150 meals needed).',
-      severity: 'CRITICAL',
-      source: 'SHELTER_CAPACITY',
-      timestamp: '12 mins ago',
-      resolved: false
-    },
-    {
-      id: 'alt_02',
-      title: 'Perishable Aid Expiration Warning: Organic Produce Crate',
-      description: 'Donation #don_mock_02 is perishable and expires in under 36 hours. Prioritizing expedited routing.',
-      severity: 'WARNING',
-      source: 'DONATION_DISPATCH',
-      timestamp: '28 mins ago',
-      resolved: false
-    },
-    {
-      id: 'alt_03',
-      title: 'Unassigned Mission Pending Acceptance: Mission #asg_seed_01',
-      description: 'Courier dispatch offer awaiting acceptance for over 15 minutes.',
-      severity: 'WARNING',
-      source: 'COURIER_FLEET',
-      timestamp: '45 mins ago',
-      resolved: false
-    }
-  ]);
+  // Operational Alerts State (combines live DB alerts with fallback telemetry)
+  const [alerts, setAlerts] = useState([]);
 
   // Recent Platform Events Stream
-  const [recentEvents, setRecentEvents] = useState([
-    {
-      id: 'evt_01',
-      type: 'ASSIGNMENT_STATE_CHANGED',
-      entity: 'Assignment #asg_seed_01',
-      description: 'Courier Carlos Ruiz marked shipment as ACCEPTED',
-      actor: 'Carlos Ruiz (RIDER)',
-      timestamp: 'Just now'
-    },
-    {
-      id: 'evt_02',
-      type: 'DONATION_CREATED',
-      entity: 'Donation #don_mock_01',
-      description: 'Sarah Jenkins registered 45 loaves of artisan bread',
-      actor: 'Sarah Jenkins (DONOR)',
-      timestamp: '14 mins ago'
-    },
-    {
-      id: 'evt_03',
-      type: 'SHELTER_CAPACITY_UPDATED',
-      entity: 'Downtown Hope Refuge',
-      description: 'Bed occupancy updated to 88/100, Urgency level HIGH',
-      actor: 'Elena Rostova (SHELTER_MANAGER)',
-      timestamp: '32 mins ago'
-    },
-    {
-      id: 'evt_04',
-      type: 'DELIVERY_COMPLETED',
-      entity: 'Assignment #asg_seed_02',
-      description: 'Intake dock receipt confirmed into relief kitchen pantry',
-      actor: 'Elena Rostova (SHELTER_MANAGER)',
-      timestamp: '1 hour ago'
-    }
-  ]);
+  const [recentEvents, setRecentEvents] = useState([]);
 
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const [telRes, donRes, shlRes, rdrRes, asgRes] = await Promise.all([
+      const [telRes, donRes, shlRes, rdrRes, asgRes, evtRes, altRes] = await Promise.all([
         analyticsService.getTelemetry({ forceMock }),
         donationsService.getDonations({ forceMock }),
         sheltersService.getShelters({ forceMock }),
         ridersService.getRiders({ forceMock }),
-        assignmentsService.getAssignments({ forceMock })
+        assignmentsService.getAssignments({ forceMock }),
+        eventsService.getEvents({ limit: 10, forceMock }).catch(() => ({ data: [] })),
+        eventsService.getAdminAlerts({ limit: 10, forceMock }).catch(() => ({ data: [] }))
       ]);
 
       setTelemetry(telRes.data || null);
@@ -133,6 +76,72 @@ export function AdminDashboard() {
       setShelters(shlRes.data || []);
       setRiders(rdrRes.data || []);
       setAssignments(asgRes.data || []);
+
+      if (altRes.data && altRes.data.length > 0) {
+        const formattedAlerts = altRes.data.map((a) => ({
+          id: a._id || a.id,
+          title: a.metadata?.reason?.replace(/_/g, ' ') || 'Platform Critical Alert',
+          description: a.metadata?.message || `Alert on ${a.entityType} #${a.entityId}`,
+          severity: a.metadata?.severity || 'CRITICAL',
+          source: a.entityType || 'SYSTEM',
+          timestamp: new Date(a.createdAt || a.timestamp || Date.now()).toLocaleTimeString(),
+          resolved: a.metadata?.resolved ?? false
+        }));
+        setAlerts(formattedAlerts);
+      } else {
+        // Default telemetry alerts
+        setAlerts([
+          {
+            id: 'alt_01',
+            title: 'High Urgency Shelter Surge: Downtown Hope Refuge',
+            description: 'Shelter reached 88% bed occupancy and reported understocked meal pantry (150 meals needed).',
+            severity: 'CRITICAL',
+            source: 'SHELTER_CAPACITY',
+            timestamp: '12 mins ago',
+            resolved: false
+          },
+          {
+            id: 'alt_02',
+            title: 'Perishable Aid Expiration Warning: Organic Produce Crate',
+            description: 'Donation is perishable. Prioritizing expedited routing before safety deadline.',
+            severity: 'WARNING',
+            source: 'DONATION_DISPATCH',
+            timestamp: '28 mins ago',
+            resolved: false
+          }
+        ]);
+      }
+
+      if (evtRes.data && evtRes.data.length > 0) {
+        const formattedEvents = evtRes.data.map((e) => ({
+          id: e._id || e.id,
+          type: e.eventType,
+          entity: `${e.entityType} #${e.entityId}`,
+          description: e.metadata?.message || e.metadata?.reason || `Event ${e.eventType}`,
+          actor: e.actorId?.name || e.actorRole || 'System Worker',
+          timestamp: new Date(e.createdAt || e.timestamp || Date.now()).toLocaleTimeString()
+        }));
+        setRecentEvents(formattedEvents);
+      } else {
+        setRecentEvents([
+          {
+            id: 'evt_01',
+            type: 'ASSIGNMENT_STATE_CHANGED',
+            entity: 'Assignment #asg_seed_01',
+            description: 'Courier Carlos Ruiz marked shipment as ACCEPTED',
+            actor: 'Carlos Ruiz (RIDER)',
+            timestamp: 'Just now'
+          },
+          {
+            id: 'evt_02',
+            type: 'DONATION_CREATED',
+            entity: 'Donation #don_mock_01',
+            description: 'Sarah Jenkins registered 45 loaves of artisan bread',
+            actor: 'Sarah Jenkins (DONOR)',
+            timestamp: '14 mins ago'
+          }
+        ]);
+      }
     } catch (err) {
       setError(err.message || 'Failed to fetch operational telemetry');
     } finally {
@@ -143,7 +152,9 @@ export function AdminDashboard() {
   useEffect(() => {
     loadData();
 
-    // Subscribe to live operational events
+    // Connect Socket.IO and subscribe to live operational events
+    connectSocket();
+
     const unsubDonation = subscribeToEvent(SOCKET_EVENTS.DONATION_CREATED, (d) => {
       if (d) {
         setDonations((prev) => [d, ...prev]);
@@ -218,11 +229,11 @@ export function AdminDashboard() {
     });
 
     return () => {
-      unsubDonation();
-      unsubShelter();
-      unsubRider();
-      unsubAsgState();
-      unsubAsgOffer();
+      if (unsubDonation) unsubDonation();
+      if (unsubShelter) unsubShelter();
+      if (unsubRider) unsubRider();
+      if (unsubAsgState) unsubAsgState();
+      if (unsubAsgOffer) unsubAsgOffer();
     };
   }, [forceMock]);
 

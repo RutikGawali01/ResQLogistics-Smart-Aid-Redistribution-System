@@ -88,10 +88,11 @@ export const ridersService = {
 
     try {
       const isAvailable = status === 'AVAILABLE';
-      const res = await apiClient.patch(`/riders/${id}/availability`, {
+      const payload = {
         status,
         isAvailable
-      });
+      };
+      const res = await apiClient.patch(`/riders/${id}/availability`, payload);
       return { success: true, data: res.data?.data || res.data, isMock: false };
     } catch (err) {
       return {
@@ -110,6 +111,14 @@ export const ridersService = {
    * Calls POST /api/riders/:id/location via Axios.
    */
   async updateLocation(id, coordinates, { forceMock = false } = {}) {
+    const loc = coordinates?.currentLocation || coordinates?.location || coordinates;
+    const normalized = {
+      latitude: Number(loc?.latitude ?? 37.7749),
+      longitude: Number(loc?.longitude ?? -122.4194),
+      heading: loc?.heading !== undefined ? Number(loc.heading) : 0,
+      speedKmh: loc?.speedKmh !== undefined ? Number(loc.speedKmh) : 0
+    };
+
     if (forceMock) {
       inMemoryRiders = inMemoryRiders.map((r) =>
         r.id === id || r.userId === id
@@ -117,7 +126,7 @@ export const ridersService = {
               ...r,
               currentLocation: {
                 ...r.currentLocation,
-                ...coordinates,
+                ...normalized,
                 updatedAt: new Date().toISOString()
               }
             }
@@ -128,7 +137,7 @@ export const ridersService = {
     }
 
     try {
-      const res = await apiClient.post(`/riders/${id}/location`, coordinates);
+      const res = await apiClient.post(`/riders/${id}/location`, normalized);
       return { success: true, data: res.data?.data || res.data, isMock: false };
     } catch (err) {
       return {

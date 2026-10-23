@@ -8,8 +8,8 @@ import { StatusBadge, UrgencyBadge, CategoryBadge, Badge } from '../../component
 import { Button, Input, Select, FormField } from '../../components/ui/FormElements.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table.jsx';
 import { LoadingState, EmptyState, ErrorState } from '../../components/ui/States.jsx';
-import { subscribeToEvent } from '../../services/socket.js';
 import { ASSIGNMENT_STATUS, SOCKET_EVENTS } from '@aidflow/shared';
+import { connectSocket, subscribeToEvent } from '../../services/socket.js';
 import {
   Building2,
   Users,
@@ -117,11 +117,51 @@ export function ShelterDashboard() {
 
   useEffect(() => {
     loadData();
+    // Socket.IO real-time event listeners for live incoming dispatches and capacity
+    connectSocket();
 
-    // Subscribe to live events (Task 5)
-    const unsubCapacity = subscribeToEvent(SOCKET_EVENTS.SHELTER_CAPACITY_UPDATED, (updatedShelter) => {
+    const unsubAsgState = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_STATE_CHANGED, (data) => {
+      const asgId = data?.assignmentId || data?.id;
+      if (asgId) {
+        setIncomingDeliveries((prev) => {
+          const exists = prev.some((a) => a.id === asgId);
+          if (exists) {
+            if (data.newStatus === ASSIGNMENT_STATUS.DELIVERED) {
+              return prev.filter((a) => a.id !== asgId);
+            }
+            return prev.map((a) =>
+              a.id === asgId ? { ...a, status: data.newStatus || data.status || a.status } : a
+            );
+          }
+          if (data.newStatus !== ASSIGNMENT_STATUS.DELIVERED && data.shelterId === shelter?.id) {
+            return [data, ...prev];
+          }
+          return prev;
+        });
+      }
+    });
+
+    const unsubDonCreated = subscribeToEvent(SOCKET_EVENTS.DONATION_CREATED, (newDonation) => {
+      if (newDonation) {
+        setAvailableAid((prev) => [newDonation, ...prev.filter((d) => d.id !== (newDonation.id || newDonation._id))]);
+      }
+    });
+
+    const unsubDonReserved = subscribeToEvent(SOCKET_EVENTS.DONATION_RESERVED, (data) => {
+      const updated = data?.donation || data;
+      if (updated?.id || updated?._id) {
+        const id = updated.id || updated._id;
+        setAvailableAid((prev) =>
+          prev
+            .map((d) => (d.id === id || d._id === id ? { ...d, ...updated } : d))
+            .filter((d) => (d.availableQuantity !== undefined ? d.availableQuantity > 0 : d.status === 'AVAILABLE'))
+        );
+      }
+    });
+
+    const unsubShelterCapacity = subscribeToEvent(SOCKET_EVENTS.SHELTER_CAPACITY_UPDATED, (updatedShelter) => {
       if (updatedShelter && (updatedShelter.id === shelter?.id || updatedShelter._id === shelter?.id)) {
-        setShelter(updatedShelter);
+        setShelter((prev) => ({ ...prev, ...updatedShelter }));
         if (updatedShelter.capacity) {
           setCurrentOccupancy(updatedShelter.capacity.currentOccupancy);
           setMaxCapacity(updatedShelter.capacity.maxCapacity);
@@ -129,20 +169,11 @@ export function ShelterDashboard() {
       }
     });
 
-    const unsubAsgState = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_STATE_CHANGED, (asg) => {
-      setIncomingDeliveries((prev) => {
-        const id = asg.assignmentId || asg.id;
-        const exists = prev.some((a) => a.id === id);
-        if (exists) {
-          return prev.map((a) => (a.id === id ? { ...a, ...asg, status: asg.newStatus || asg.status } : a));
-        }
-        return [asg, ...prev];
-      });
-    });
-
     return () => {
-      unsubCapacity();
-      unsubAsgState();
+      if (unsubAsgState) unsubAsgState();
+      if (unsubDonCreated) unsubDonCreated();
+      if (unsubDonReserved) unsubDonReserved();
+      if (unsubShelterCapacity) unsubShelterCapacity();
     };
   }, [forceMock, shelter?.id]);
 
@@ -179,17 +210,17 @@ export function ShelterDashboard() {
     setError(null);
 
     try {
-      const res = await sheltersService.updateCapacity(
+      const res = await sheltersService.updateDemand(
         shelter.id,
         {
-          currentOccupancy: Number(currentOccupancy),
-          maxCapacity: Number(maxCapacity),
-          mealsNeededPerDay: Number(mealsNeeded)
+          mealsNeededPerDay: Number(mealsNeeded),
+          currentDemand: Number(mealsNeeded),
+          receivingCapacity: Number(maxCapacity)
         },
         { forceMock }
       );
 
-      const urgRes = await sheltersService.updateUrgency(shelter.id, urgencyLevel, { forceMock });
+      const urgRes = await sheltersService.updateStatus(shelter.id, { urgencyLevel }, { forceMock });
 
       if (res.success && urgRes.success) {
         setActionNotice('Receiving capacity, resource availability, and urgency levels successfully updated on server.');
@@ -201,6 +232,8 @@ export function ShelterDashboard() {
             maxCapacity: Number(maxCapacity),
             mealsNeededPerDay: Number(mealsNeeded)
           },
+          currentDemand: Number(mealsNeeded),
+          receivingCapacity: Number(maxCapacity),
           urgencyLevel
         }));
       } else {

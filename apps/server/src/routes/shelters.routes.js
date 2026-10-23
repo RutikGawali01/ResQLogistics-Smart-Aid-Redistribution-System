@@ -367,4 +367,37 @@ router.patch('/:id/capacity', requireRoles(ROLES.SHELTER_MANAGER, ROLES.ADMIN), 
   }
 });
 
+/**
+ * PATCH /api/shelters/:id/urgency
+ */
+router.patch('/:id/urgency', requireRoles(ROLES.SHELTER_MANAGER, ROLES.ADMIN), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { urgencyLevel } = req.body;
+    if (!urgencyLevel) {
+      return res.fail(ERROR_CODES.BAD_REQUEST, 'urgencyLevel is required', null, 400);
+    }
+
+    if (isDatabaseConnected()) {
+      const shelter = await Shelter.findById(id);
+      if (!shelter) {
+        return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
+      }
+      shelter.urgencyLevel = urgencyLevel;
+      await shelter.save();
+      broadcastEvent(SOCKET_EVENTS.SHELTER_CAPACITY_UPDATED, shelter);
+      return res.success(shelter, 'Shelter urgency updated');
+    }
+
+    const found = inMemoryShelters.find((s) => s.id === id);
+    if (!found) {
+      return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
+    }
+    found.urgencyLevel = urgencyLevel;
+    return res.success(found, 'Shelter urgency updated (in-memory mode)');
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

@@ -6,7 +6,17 @@ let ioInstance = null;
 export function initSocketServer(httpServer, corsOrigin) {
   ioInstance = new Server(httpServer, {
     cors: {
-      origin: corsOrigin || '*',
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (
+          origin === corsOrigin ||
+          /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+        ) {
+          return callback(null, true);
+        }
+        return callback(null, true);
+      },
+      credentials: true,
       methods: ['GET', 'POST']
     }
   });

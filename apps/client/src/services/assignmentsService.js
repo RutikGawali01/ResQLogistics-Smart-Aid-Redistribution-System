@@ -141,10 +141,10 @@ export const assignmentsService = {
    * Calls PATCH /api/assignments/:id/state via Axios and surfaces server errors.
    */
   async transitionState(assignmentId, targetStatus, { reason, coordinates, forceMock = false } = {}) {
-    if (forceMock) {
-      const existing = inMemoryAssignments.find((a) => a.id === assignmentId);
-      const currentStatus = existing ? existing.status : ASSIGNMENT_STATUS.UNASSIGNED;
+    const existing = inMemoryAssignments.find((a) => a.id === assignmentId);
 
+    if (forceMock) {
+      const currentStatus = existing ? existing.status : ASSIGNMENT_STATUS.UNASSIGNED;
       const validation = canTransitionAssignment(currentStatus, targetStatus);
       if (!validation.valid) {
         return {

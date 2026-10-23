@@ -28,6 +28,8 @@ import {
   X,
   RefreshCw
 } from 'lucide-react';
+import { connectSocket, subscribeToEvent } from '../../services/socket.js';
+import { SOCKET_EVENTS } from '@aidflow/shared';
 
 export function DonorDashboard() {
   const { user, forceMock } = useAuth();
@@ -62,62 +64,93 @@ export function DonorDashboard() {
   useEffect(() => {
     fetchData();
 
-    // Subscribe to live events (Task 5: Refresh authoritative data when necessary)
-    const unsubCreated = subscribeToEvent(SOCKET_EVENTS.DONATION_CREATED, (newDon) => {
-      setDonations((prev) => [newDon, ...prev.filter((d) => d.id !== newDon.id)]);
+    // Socket.IO real-time event listeners for live donor impact tracking
+    connectSocket();
+
+    const unsubCreated = subscribeToEvent(SOCKET_EVENTS.DONATION_CREATED, (newDonation) => {
+      if (newDonation) {
+        setDonations((prev) => [newDonation, ...prev.filter((d) => d.id !== (newDonation.id || newDonation._id))]);
+      }
     });
 
-    const unsubReserved = subscribeToEvent(SOCKET_EVENTS.DONATION_RESERVED, ({ donation }) => {
-      if (donation) {
+    const unsubReserved = subscribeToEvent(SOCKET_EVENTS.DONATION_RESERVED, (data) => {
+      const updated = data?.donation || data;
+      if (updated?.id || updated?._id) {
+        const id = updated.id || updated._id;
         setDonations((prev) =>
-          prev.map((d) => (d.id === donation.id ? { ...d, ...donation } : d))
+          prev.map((d) => (d.id === id || d._id === id ? { ...d, ...updated } : d))
         );
       }
     });
 
-    const unsubAsgState = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_STATE_CHANGED, (asg) => {
-      setAssignments((prev) => {
-        const id = asg.assignmentId || asg.id;
-        const exists = prev.some((a) => a.id === id);
-        if (exists) {
-          return prev.map((a) => (a.id === id ? { ...a, ...asg, status: asg.newStatus || asg.status } : a));
-        }
-        return [asg, ...prev];
-      });
+    const unsubAsgState = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_STATE_CHANGED, (data) => {
+      const asgId = data?.assignmentId || data?.id;
+      if (asgId) {
+        setAssignments((prev) =>
+          prev.map((a) => (a.id === asgId ? { ...a, status: data.newStatus || data.status || a.status } : a))
+        );
+      }
+      if (data?.newStatus === 'DELIVERED') {
+        fetchData(true);
+      }
     });
 
     return () => {
-      unsubCreated();
-      unsubReserved();
-      unsubAsgState();
+      if (unsubCreated) unsubCreated();
+      if (unsubReserved) unsubReserved();
+      if (unsubAsgState) unsubAsgState();
     };
   }, [forceMock]);
 
   if (loading) return <LoadingState message="Loading your donor impact dashboard..." />;
   if (error) return <ErrorState message={error} />;
 
-  // Calculate required quantities: Available, Reserved, and Completed
-  const availableDonations = donations.filter((d) => d.status === 'AVAILABLE');
+  // Calculate required quantities: Available, Reserved, and Completed from real MongoDB data
+  const activeDonations = donations.filter((d) => d.status !== 'CANCELLED' && d.status !== 'EXPIRED');
+
+  const availableQuantity = activeDonations.reduce((acc, d) => {
+    if (d.status === 'DELIVERED') return acc;
+    const avail = d.availableQuantity !== undefined
+      ? Number(d.availableQuantity)
+      : (d.status === 'AVAILABLE' ? Number(d.quantity) : 0);
+    return acc + (avail || 0);
+  }, 0);
+
+  const reservedQuantity = activeDonations.reduce((acc, d) => {
+    if (d.status === 'DELIVERED') return acc;
+    const total = Number(d.quantity) || 0;
+    const avail = d.availableQuantity !== undefined
+      ? Number(d.availableQuantity)
+      : (d.status === 'AVAILABLE' ? total : 0);
+    const reserved = Math.max(0, total - avail);
+    return acc + (reserved || 0);
+  }, 0);
+
+  const completedQuantity = donations
+    .filter((d) => d.status === 'DELIVERED')
+    .reduce((acc, d) => acc + (Number(d.quantity) || 0), 0);
+
+  const totalQuantity = donations.reduce((acc, d) => acc + (Number(d.quantity) || 0), 0);
+
+  const availableDonations = donations.filter(
+    (d) => d.status === 'AVAILABLE' || (d.availableQuantity !== undefined && d.availableQuantity > 0)
+  );
   const reservedDonations = donations.filter((d) =>
-    ['RESERVED', 'ASSIGNED', 'IN_TRANSIT'].includes(d.status)
+    ['RESERVED', 'ASSIGNED', 'IN_TRANSIT'].includes(d.status) ||
+    (d.availableQuantity !== undefined && d.availableQuantity < d.quantity && d.status !== 'DELIVERED')
   );
   const completedDonations = donations.filter((d) => d.status === 'DELIVERED');
 
-  const availableQuantity = availableDonations.reduce((acc, d) => acc + (Number(d.quantity) || 0), 0);
-  const reservedQuantity = reservedDonations.reduce((acc, d) => acc + (Number(d.quantity) || 0), 0);
-  const completedQuantity = completedDonations.reduce((acc, d) => acc + (Number(d.quantity) || 0), 0);
-  const totalQuantity = donations.reduce((acc, d) => acc + (Number(d.quantity) || 0), 0);
-
   // Helper to match donation with its assignment for pickup & delivery tracking
   const getDeliveryInfo = (donationId) => {
-    const asg = assignments.find((a) => a.donationId === donationId);
+    const asg = assignments.find((a) => a.donationId === donationId || a.donationId?._id === donationId);
     if (!asg) {
       return { statusText: 'Awaiting shelter reservation', rider: null, shelter: null };
     }
     return {
-      statusText: asg.status.replace(/_/g, ' '),
-      rider: asg.riderName || 'Courier Assigned',
-      shelter: asg.shelterName || 'Regional Relief Hub',
+      statusText: (asg.status || 'ASSIGNED').replace(/_/g, ' '),
+      rider: asg.riderName || asg.riderId?.name || 'Courier Assigned',
+      shelter: asg.shelterName || asg.shelterId?.name || 'Regional Relief Hub',
       assignment: asg
     };
   };

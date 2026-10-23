@@ -10,7 +10,7 @@ import { LoadingState, EmptyState, ErrorState } from '../../components/ui/States
 import { Alert } from '../../components/ui/Alert.jsx';
 import { MapPreview } from '../../components/MapPreview.jsx';
 import { ASSIGNMENT_STATUS, SOCKET_EVENTS } from '@aidflow/shared';
-import { subscribeToEvent } from '../../services/socket.js';
+import { connectSocket, subscribeToEvent } from '../../services/socket.js';
 import {
   Bike,
   Navigation,
@@ -23,7 +23,8 @@ import {
   Truck,
   Package,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  Radio
 } from 'lucide-react';
 
 export function RiderDashboard() {
@@ -33,6 +34,9 @@ export function RiderDashboard() {
   const [assignments, setAssignments] = useState([]);
   const [riderInfo, setRiderInfo] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
+  const [telemetryPingMsg, setTelemetryPingMsg] = useState(null);
+
+  const riderTargetId = riderInfo?.id || riderInfo?._id || user?.id || 'usr_rider_01';
 
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -54,11 +58,13 @@ export function RiderDashboard() {
   useEffect(() => {
     loadData();
 
-    // Subscribe to live events for couriers
+    // Socket.IO real-time event listeners for live assignments & telemetry
+    connectSocket();
+
     const unsubOffered = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_OFFERED, (asg) => {
       if (asg) {
+        const id = asg.assignmentId || asg.id;
         setAssignments((prev) => {
-          const id = asg.assignmentId || asg.id;
           if (prev.some((a) => a.id === id)) return prev;
           return [asg, ...prev];
         });
@@ -82,7 +88,7 @@ export function RiderDashboard() {
     });
 
     const unsubRider = subscribeToEvent(SOCKET_EVENTS.RIDER_STATUS_CHANGED, (data) => {
-      if (data && (data.riderId === user?.id || data.riderId === riderInfo?.id)) {
+      if (data && (data.riderId === user?.id || data.riderId === riderInfo?.id || data.riderId === riderTargetId)) {
         setRiderInfo((prev) => ({
           ...prev,
           status: data.status || prev?.status,
@@ -92,11 +98,11 @@ export function RiderDashboard() {
     });
 
     return () => {
-      unsubOffered();
-      unsubState();
-      unsubRider();
+      if (unsubOffered) unsubOffered();
+      if (unsubState) unsubState();
+      if (unsubRider) unsubRider();
     };
-  }, [forceMock, user?.id, riderInfo?.id]);
+  }, [forceMock, user?.id, riderInfo?.id, riderTargetId]);
 
   // Current active assignment for this rider
   const activeAssignment = assignments.find(
@@ -114,13 +120,26 @@ export function RiderDashboard() {
     if (!activeAssignment) return;
     setActionSuccess(null);
     setError(null);
+
+    // Current coordinates if available from rider profile or active assignment
+    const coords = riderInfo?.currentLocation || activeAssignment.pickupLocation;
+    const coordinates = coords ? { latitude: coords.latitude, longitude: coords.longitude } : null;
+
     try {
-      const res = await assignmentsService.transitionState(activeAssignment.id, targetStatus, { forceMock });
+      const res = await assignmentsService.transitionState(activeAssignment.id, targetStatus, {
+        coordinates,
+        forceMock
+      });
       if (res.success && res.data) {
         setAssignments((prev) =>
           prev.map((a) => (a.id === activeAssignment.id ? res.data : a))
         );
         setActionSuccess(`Status transitioned to ${targetStatus}`);
+
+        // Sync rider location with live operations
+        if (coordinates) {
+          await ridersService.updateLocation(riderTargetId, coordinates, { forceMock });
+        }
       } else {
         const errMsg = res.details?.reason || res.error || 'State transition failed';
         setError(errMsg);
@@ -134,15 +153,32 @@ export function RiderDashboard() {
     const nextStatus = riderInfo?.status === 'AVAILABLE' ? 'OFFLINE' : 'AVAILABLE';
     setError(null);
     try {
-      const res = await ridersService.updateStatus(user?.id || 'usr_rider_01', nextStatus, { forceMock });
+      const res = await ridersService.updateStatus(riderTargetId, nextStatus, { forceMock });
       if (res.success) {
-        setRiderInfo((prev) => ({ ...prev, status: nextStatus }));
-        setActionSuccess(`Status updated to ${nextStatus}`);
+        setRiderInfo((prev) => ({ ...prev, status: nextStatus, isAvailable: nextStatus === 'AVAILABLE' }));
+        setActionSuccess(`Dispatch status updated to ${nextStatus}`);
       } else {
         setError(res.error || 'Failed to update courier status');
       }
     } catch (err) {
       setError(err.message || 'Failed to update courier status');
+    }
+  };
+
+  const handleSendTelemetryPing = async () => {
+    const loc = riderInfo?.currentLocation || { latitude: 37.7749, longitude: -122.4194 };
+    // Jitter slightly for realistic demonstration
+    const updatedLoc = {
+      latitude: loc.latitude + (Math.random() - 0.5) * 0.002,
+      longitude: loc.longitude + (Math.random() - 0.5) * 0.002,
+      heading: 45,
+      speedKmh: 19
+    };
+    const res = await ridersService.updateLocation(riderTargetId, updatedLoc, { forceMock });
+    if (res.success) {
+      setRiderInfo((prev) => ({ ...prev, currentLocation: updatedLoc }));
+      setTelemetryPingMsg(`GPS Telemetry broadcast at ${new Date().toLocaleTimeString()}`);
+      setTimeout(() => setTelemetryPingMsg(null), 4000);
     }
   };
 
@@ -177,9 +213,18 @@ export function RiderDashboard() {
           </div>
         </div>
 
-        {/* Status Toggle Button */}
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400">Dispatch Status:</span>
+        {/* Status Toggle & GPS Broadcast Controls */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            size="sm"
+            variant="outline"
+            icon={Radio}
+            onClick={handleSendTelemetryPing}
+            title="Broadcast live GPS coordinates to central dispatch"
+          >
+            Ping GPS Telemetry
+          </Button>
+
           <Button
             size="sm"
             variant={riderInfo?.status === 'AVAILABLE' ? 'primary' : 'outline'}
@@ -194,6 +239,13 @@ export function RiderDashboard() {
           </Button>
         </div>
       </div>
+
+      {telemetryPingMsg && (
+        <div className="p-3 bg-sky-950/40 border border-sky-800/80 rounded-xl text-xs text-sky-300 flex items-center gap-2 animate-in fade-in">
+          <Radio className="w-4 h-4 text-sky-400 flex-shrink-0 animate-pulse" />
+          <span>{telemetryPingMsg}</span>
+        </div>
+      )}
 
       {actionSuccess && (
         <div className="p-3 bg-emerald-950/40 border border-emerald-800/80 rounded-xl text-xs text-emerald-300 flex items-center gap-2">
@@ -268,6 +320,26 @@ export function RiderDashboard() {
                   Note: {activeAssignment.notes}
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* Real-time Route Map */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Navigation className="w-3.5 h-3.5 text-sky-400" />
+                Live Route & Geospatial Navigation
+              </span>
+              <span className="text-[11px] text-emerald-400 font-mono">Real-time Telemetry Active</span>
+            </div>
+            <div className="rounded-xl overflow-hidden border border-slate-800">
+              <MapPreview
+                assignments={[activeAssignment]}
+                riders={riderInfo ? [riderInfo] : []}
+                focusedAssignmentId={activeAssignment.id}
+                height="300px"
+                isMockData={forceMock}
+              />
             </div>
           </div>
 

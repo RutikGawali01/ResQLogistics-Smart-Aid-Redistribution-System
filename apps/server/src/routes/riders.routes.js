@@ -77,6 +77,17 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+async function findRiderByIdOrUserId(id) {
+  if (!id) return null;
+  const conditions = [];
+  if (mongoose.isValidObjectId(id)) {
+    conditions.push({ _id: id });
+    conditions.push({ userId: id });
+  }
+  if (conditions.length === 0) return null;
+  return await Rider.findOne({ $or: conditions }).populate('userId', 'name email phone');
+}
+
 /**
  * GET /api/riders/:id
  * Retrieve single rider
@@ -87,12 +98,7 @@ router.get('/:id', async (req, res, next) => {
 
     let rider = null;
     if (isDatabaseConnected()) {
-      rider = await Rider.findOne({
-        $or: [
-          { _id: mongoose.isValidObjectId(id) ? id : null },
-          { userId: mongoose.isValidObjectId(id) ? id : null }
-        ]
-      }).populate('userId', 'name email phone');
+      rider = await findRiderByIdOrUserId(id);
     }
 
     if (!rider) {
@@ -176,11 +182,11 @@ router.post(
 );
 
 /**
- * PATCH /api/riders/:id/availability
+ * PATCH /api/riders/:id/availability & /api/riders/:id/status
  * Update rider availability and online status
  */
 router.patch(
-  '/:id/availability',
+  ['/:id/availability', '/:id/status'],
   authenticate,
   requireRoles(ROLES.ADMIN, ROLES.RIDER),
   validateBody(riderAvailabilitySchema),
@@ -190,13 +196,13 @@ router.patch(
       const { isAvailable, status } = req.validatedBody;
 
       if (isDatabaseConnected()) {
-        const rider = await Rider.findById(id);
+        const rider = await findRiderByIdOrUserId(id);
         if (!rider) {
           return res.fail(ERROR_CODES.NOT_FOUND, `Rider '${id}' not found`, null, 404);
         }
 
         // Ownership authorization check
-        const isOwner = rider.userId.toString() === req.user.id;
+        const isOwner = rider.userId?._id?.toString() === req.user.id || rider.userId?.toString() === req.user.id;
         const isAdmin = req.user.role === ROLES.ADMIN;
         if (!isOwner && !isAdmin) {
           return res.fail(ERROR_CODES.FORBIDDEN, 'Forbidden: You cannot change another rider availability', null, 403);
@@ -222,7 +228,11 @@ router.patch(
           metadata: { isAvailable: rider.isAvailable, status: rider.status }
         });
 
-        broadcastEvent(SOCKET_EVENTS.RIDER_STATUS_CHANGED, { riderId: id, status: rider.status, isAvailable: rider.isAvailable });
+        broadcastEvent(SOCKET_EVENTS.RIDER_STATUS_CHANGED, {
+          riderId: rider._id.toString(),
+          status: rider.status,
+          isAvailable: rider.isAvailable
+        });
         return res.success(rider, 'Rider availability updated successfully');
       }
 
@@ -243,6 +253,12 @@ router.patch(
         found.status = status;
         found.isAvailable = status === 'AVAILABLE';
       }
+
+      broadcastEvent(SOCKET_EVENTS.RIDER_STATUS_CHANGED, {
+        riderId: found.id || id,
+        status: found.status,
+        isAvailable: found.isAvailable
+      });
 
       return res.success(found, 'Rider availability updated (in-memory mode)');
     } catch (err) {
@@ -329,13 +345,13 @@ router.patch(
       const newCapacity = capacity || maxCapacityKg;
 
       if (isDatabaseConnected()) {
-        const rider = await Rider.findById(id);
+        const rider = await findRiderByIdOrUserId(id);
         if (!rider) {
           return res.fail(ERROR_CODES.NOT_FOUND, `Rider '${id}' not found`, null, 404);
         }
 
         // Ownership authorization check
-        const isOwner = rider.userId.toString() === req.user.id;
+        const isOwner = rider.userId?._id?.toString() === req.user.id || rider.userId?.toString() === req.user.id;
         const isAdmin = req.user.role === ROLES.ADMIN;
         if (!isOwner && !isAdmin) {
           return res.fail(ERROR_CODES.FORBIDDEN, 'Forbidden: You cannot modify another rider capacity', null, 403);
@@ -391,11 +407,11 @@ router.patch(
 );
 
 /**
- * POST /api/riders/:id/location
+ * POST /api/riders/:id/location & /api/riders/:id/telemetry
  * Update live GPS telemetry
  */
 router.post(
-  '/:id/location',
+  ['/:id/location', '/:id/telemetry'],
   authenticate,
   requireRoles(ROLES.RIDER, ROLES.ADMIN),
   validateBody(riderLocationSchema),
@@ -405,7 +421,7 @@ router.post(
       const location = req.validatedBody;
 
       if (isDatabaseConnected()) {
-        const rider = await Rider.findById(id);
+        const rider = await findRiderByIdOrUserId(id);
         if (!rider) {
           return res.fail(ERROR_CODES.NOT_FOUND, `Rider '${id}' not found`, null, 404);
         }
@@ -417,8 +433,9 @@ router.post(
         await rider.save();
 
         broadcastEvent(SOCKET_EVENTS.RIDER_LOCATION_BROADCAST, {
-          riderId: id,
+          riderId: rider._id.toString(),
           location: rider.currentLocation,
+          currentLocation: rider.currentLocation,
           assignmentId: rider.activeAssignmentId
         });
 
@@ -431,6 +448,13 @@ router.post(
       }
 
       found.currentLocation = { ...location, updatedAt: new Date().toISOString() };
+      broadcastEvent(SOCKET_EVENTS.RIDER_LOCATION_BROADCAST, {
+        riderId: found.id || id,
+        location: found.currentLocation,
+        currentLocation: found.currentLocation,
+        assignmentId: found.activeAssignmentId
+      });
+
       return res.success({ location: found.currentLocation }, 'Rider location updated (in-memory mode)');
     } catch (err) {
       next(err);

@@ -235,7 +235,8 @@ export function useLiveOperations({ pollInterval = 25000, enableAutoPolling = tr
 
     // 1. Real-time Rider Location Updates (Task 1 & Task 9)
     const unsubLocation = subscribeToEvent(SOCKET_EVENTS.RIDER_LOCATION_BROADCAST, (data) => {
-      if (!data?.riderId || !data?.currentLocation) return;
+      const loc = data?.currentLocation || data?.location || data?.coordinates;
+      if (!data?.riderId || !loc) return;
       setRiders((prev) =>
         prev.map((r) => {
           if (r.id === data.riderId || r.userId === data.riderId) {
@@ -243,7 +244,7 @@ export function useLiveOperations({ pollInterval = 25000, enableAutoPolling = tr
               ...r,
               currentLocation: {
                 ...r.currentLocation,
-                ...data.currentLocation,
+                ...loc,
                 updatedAt: new Date().toISOString()
               },
               // Respect Task 9: Clearly distinguish telemetry source
