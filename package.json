@@ -20,6 +20,7 @@
     "test:worker": "npm run test --workspace=@aidflow/worker",
     "seed": "npm run seed --workspace=@aidflow/server",
     "seed:users": "npm run seed:users --workspace=@aidflow/server",
+    "test:scenarios": "node scripts/verifyHackathonScenarios.js",
     "build": "npm run build --workspaces --if-present"
   },
   "devDependencies": {

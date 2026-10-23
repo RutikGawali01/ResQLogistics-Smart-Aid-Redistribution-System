@@ -99,7 +99,35 @@ export async function runSeed({ quiet = false } = {}) {
     organization: 'St. Jude Community Center'
   });
 
-  log(`✅ Seeded ${7} users.`);
+  // Generic convenience role accounts
+  await User.create({
+    name: 'City Food Donor',
+    email: 'donor@aidflow.org',
+    password: defaultPassword,
+    role: ROLES.DONOR,
+    phone: '+1 (555) 0101',
+    organization: 'Metropolitan Harvest Surplus'
+  });
+
+  await User.create({
+    name: 'Carlos Ruiz (Courier Rider)',
+    email: 'rider@aidflow.org',
+    password: defaultPassword,
+    role: ROLES.RIDER,
+    phone: '+1 (555) 0155',
+    organization: 'Green Wheel Couriers'
+  });
+
+  await User.create({
+    name: 'Downtown Hope Refuge Manager',
+    email: 'shelter@aidflow.org',
+    password: defaultPassword,
+    role: ROLES.SHELTER_MANAGER,
+    phone: '+1 (555) 0188',
+    organization: 'Downtown Hope Refuge'
+  });
+
+  log(`✅ Seeded ${10} users.`);
 
   // 2. Seed Shelters
   const shelter1 = await Shelter.create({
