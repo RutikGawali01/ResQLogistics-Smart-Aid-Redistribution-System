@@ -3,6 +3,35 @@ import { ERROR_CODES } from '@aidflow/shared';
 import { config } from '../config/env.js';
 
 /**
+ * Issues a signed JWT access token for a given user.
+ * @param {object} user - User document or plain object with id, email, role, and name
+ * @param {object} [options={}] - Additional jwt.sign options (e.g. custom expiresIn)
+ * @returns {string} Signed JWT token
+ */
+export function generateToken(user, options = {}) {
+  const payload = {
+    id: user.id || user._id?.toString(),
+    email: user.email,
+    role: user.role,
+    name: user.name
+  };
+
+  return jwt.sign(payload, config.jwt.secret, {
+    expiresIn: config.jwt.expiresIn,
+    ...options
+  });
+}
+
+/**
+ * Verifies and decodes a JWT access token.
+ * @param {string} token - Bearer JWT string
+ * @returns {object} Decoded payload
+ */
+export function verifyToken(token) {
+  return jwt.verify(token, config.jwt.secret);
+}
+
+/**
  * Authentication middleware verifying Bearer JWT.
  */
 export function authenticate(req, res, next) {
@@ -18,10 +47,19 @@ export function authenticate(req, res, next) {
 
   const token = authHeader.split(' ')[1];
   try {
-    const payload = jwt.verify(token, config.jwt.secret);
+    const payload = verifyToken(token);
     req.user = payload;
     next();
   } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.fail(
+        ERROR_CODES.UNAUTHORIZED,
+        'Token has expired',
+        { expiredAt: err.expiredAt },
+        401
+      );
+    }
+
     return res.fail(
       ERROR_CODES.UNAUTHORIZED,
       'Invalid or expired token',
@@ -32,20 +70,23 @@ export function authenticate(req, res, next) {
 }
 
 /**
- * Role-based authorization guard.
- * @param {string[]} allowedRoles
+ * Role-based authorization middleware guard.
+ * Supports both comma-separated roles and arrays of roles.
+ * @param {...string|string[]} allowedRoles
  */
 export function requireRoles(...allowedRoles) {
+  const roles = allowedRoles.flat();
+
   return (req, res, next) => {
     if (!req.user) {
       return res.fail(ERROR_CODES.UNAUTHORIZED, 'Authentication required', null, 401);
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    if (!roles.includes(req.user.role)) {
       return res.fail(
         ERROR_CODES.FORBIDDEN,
         `Forbidden: Role '${req.user.role}' is not authorized for this resource`,
-        { requiredRoles: allowedRoles, currentRole: req.user.role },
+        { requiredRoles: roles, currentRole: req.user.role },
         403
       );
     }
@@ -53,3 +94,6 @@ export function requireRoles(...allowedRoles) {
     next();
   };
 }
+
+export const authorizeRoles = requireRoles;
+export const requireRole = requireRoles;

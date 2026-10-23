@@ -1,11 +1,15 @@
 import { Router } from 'express';
-import { shelterSchema, ERROR_CODES, SOCKET_EVENTS } from '@aidflow/shared';
+import { shelterSchema, ERROR_CODES, SOCKET_EVENTS, ROLES } from '@aidflow/shared';
 import { validateBody } from '../middleware/validator.js';
+import { authenticate, requireRoles } from '../middleware/auth.js';
 import { Shelter } from '../models/Shelter.js';
 import { isDatabaseConnected } from '../config/database.js';
 import { broadcastEvent } from '../socket/index.js';
 
 const router = Router();
+
+// Protect all shelter routes with authentication
+router.use(authenticate);
 
 const inMemoryShelters = [
   {
@@ -77,7 +81,7 @@ router.get('/', async (req, res, next) => {
 /**
  * POST /api/shelters
  */
-router.post('/', validateBody(shelterSchema), async (req, res, next) => {
+router.post('/', requireRoles(ROLES.SHELTER_MANAGER, ROLES.ADMIN), validateBody(shelterSchema), async (req, res, next) => {
   try {
     const data = req.validatedBody;
 
@@ -126,7 +130,7 @@ router.get('/:id', async (req, res, next) => {
 /**
  * PATCH /api/shelters/:id/capacity
  */
-router.patch('/:id/capacity', async (req, res, next) => {
+router.patch('/:id/capacity', requireRoles(ROLES.SHELTER_MANAGER, ROLES.ADMIN), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { currentOccupancy, urgencyLevel, mealsNeededPerDay } = req.body;

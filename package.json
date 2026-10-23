@@ -18,6 +18,7 @@
     "test:server": "npm run test --workspace=@aidflow/server",
     "test:client": "npm run test --workspace=@aidflow/client",
     "test:worker": "npm run test --workspace=@aidflow/worker",
+    "seed:users": "npm run seed:users --workspace=@aidflow/server",
     "build": "npm run build --workspaces --if-present"
   },
   "devDependencies": {

@@ -1,36 +1,37 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import { ALL_ROLES, ROLES } from '@aidflow/shared';
 import { config } from '../config/env.js';
 
 const userSchema = new mongoose.Schema(
   {
+    name: {
+      type: String,
+      required: [true, 'Name is required'],
+      trim: true
+    },
     email: {
       type: String,
-      required: true,
+      required: [true, 'Email is required'],
       unique: true,
       lowercase: true,
       trim: true
     },
-    password: {
+    passwordHash: {
       type: String,
-      required: true,
-      minlength: 8
-    },
-    name: {
-      type: String,
-      required: true,
-      trim: true
+      required: [true, 'Password hash is required']
     },
     role: {
       type: String,
-      enum: ALL_ROLES,
+      enum: {
+        values: ALL_ROLES,
+        message: '{VALUE} is not a valid role'
+      },
       default: ROLES.DONOR,
       required: true
     },
     phone: {
       type: String,
-      required: true,
       trim: true
     },
     organization: {
@@ -46,8 +47,10 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: {
       transform(doc, ret) {
+        delete ret.passwordHash;
         delete ret.password;
-        ret.id = ret._id;
+        delete ret._plainPassword;
+        ret.id = ret._id ? ret._id.toString() : ret.id;
         delete ret._id;
         delete ret.__v;
         return ret;
@@ -56,19 +59,42 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+// Virtual for setting plain password if provided directly
+userSchema.virtual('password')
+  .set(function (password) {
+    this._plainPassword = password;
+  })
+  .get(function () {
+    return this._plainPassword;
+  });
+
+// Pre-save hook to hash password into passwordHash using bcrypt if plain password was set
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  try {
-    const salt = await bcrypt.genSalt(config.bcrypt.saltRounds);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (err) {
-    next(err);
+  if (this._plainPassword) {
+    try {
+      const saltRounds = config.bcrypt?.saltRounds || 10;
+      const salt = await bcrypt.genSalt(saltRounds);
+      this.passwordHash = await bcrypt.hash(this._plainPassword, salt);
+      this._plainPassword = undefined;
+      return next();
+    } catch (err) {
+      return next(err);
+    }
   }
+  next();
 });
 
+// Compare candidate password against stored passwordHash using bcrypt
 userSchema.methods.comparePassword = async function (candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
+  if (!this.passwordHash) return false;
+  return bcrypt.compare(candidatePassword, this.passwordHash);
+};
+
+// Static helper to hash passwords directly
+userSchema.statics.hashPassword = async function (plainPassword) {
+  const saltRounds = config.bcrypt?.saltRounds || 10;
+  const salt = await bcrypt.genSalt(saltRounds);
+  return bcrypt.hash(plainPassword, salt);
 };
 
 export const User = mongoose.models.User || mongoose.model('User', userSchema);

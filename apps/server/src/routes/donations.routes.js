@@ -1,13 +1,16 @@
 import { Router } from 'express';
-import { donationSchema, reservationSchema, ERROR_CODES, SOCKET_EVENTS } from '@aidflow/shared';
+import { donationSchema, reservationSchema, ERROR_CODES, SOCKET_EVENTS, ROLES } from '@aidflow/shared';
 import { validateBody } from '../middleware/validator.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireRoles } from '../middleware/auth.js';
 import { Donation } from '../models/Donation.js';
 import { Reservation } from '../models/Reservation.js';
 import { isDatabaseConnected } from '../config/database.js';
 import { broadcastEvent } from '../socket/index.js';
 
 const router = Router();
+
+// Protect all donation endpoints with authentication
+router.use(authenticate);
 
 // Fallback in-memory donations for offline development
 const inMemoryDonations = [
@@ -62,7 +65,7 @@ router.get('/', async (req, res, next) => {
 /**
  * POST /api/donations
  */
-router.post('/', validateBody(donationSchema), async (req, res, next) => {
+router.post('/', requireRoles(ROLES.DONOR, ROLES.ADMIN), validateBody(donationSchema), async (req, res, next) => {
   try {
     const data = req.validatedBody;
 
@@ -114,7 +117,7 @@ router.get('/:id', async (req, res, next) => {
 /**
  * POST /api/donations/:id/reserve
  */
-router.post('/:id/reserve', async (req, res, next) => {
+router.post('/:id/reserve', requireRoles(ROLES.SHELTER_MANAGER, ROLES.ADMIN), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { shelterId, requestedQuantity } = req.body;

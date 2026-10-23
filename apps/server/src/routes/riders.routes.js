@@ -1,11 +1,15 @@
 import { Router } from 'express';
-import { riderSchema, riderLocationSchema, ERROR_CODES, SOCKET_EVENTS } from '@aidflow/shared';
+import { riderSchema, riderLocationSchema, ERROR_CODES, SOCKET_EVENTS, ROLES } from '@aidflow/shared';
 import { validateBody } from '../middleware/validator.js';
+import { authenticate, requireRoles } from '../middleware/auth.js';
 import { Rider } from '../models/Rider.js';
 import { isDatabaseConnected } from '../config/database.js';
 import { broadcastEvent } from '../socket/index.js';
 
 const router = Router();
+
+// Protect all rider routes with authentication
+router.use(authenticate);
 
 const inMemoryRiders = [
   {
@@ -73,7 +77,7 @@ router.get('/', async (req, res, next) => {
 /**
  * POST /api/riders/profile
  */
-router.post('/profile', validateBody(riderSchema), async (req, res, next) => {
+router.post('/profile', requireRoles(ROLES.RIDER, ROLES.ADMIN), validateBody(riderSchema), async (req, res, next) => {
   try {
     const data = req.validatedBody;
 
@@ -109,7 +113,7 @@ router.post('/profile', validateBody(riderSchema), async (req, res, next) => {
 /**
  * PATCH /api/riders/:id/status
  */
-router.patch('/:id/status', async (req, res, next) => {
+router.patch('/:id/status', requireRoles(ROLES.RIDER, ROLES.ADMIN), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -140,7 +144,7 @@ router.patch('/:id/status', async (req, res, next) => {
 /**
  * POST /api/riders/:id/location
  */
-router.post('/:id/location', validateBody(riderLocationSchema), async (req, res, next) => {
+router.post('/:id/location', requireRoles(ROLES.RIDER, ROLES.ADMIN), validateBody(riderLocationSchema), async (req, res, next) => {
   try {
     const { id } = req.params;
     const location = req.validatedBody;

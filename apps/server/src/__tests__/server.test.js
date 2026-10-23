@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app.js';
 import { ASSIGNMENT_STATUS, ERROR_CODES } from '@aidflow/shared';
+import { generateToken } from '../middleware/auth.js';
 
 describe('AidFlow Server Integration Tests', () => {
   let app;
@@ -81,10 +82,30 @@ describe('AidFlow Server Integration Tests', () => {
   });
 
   describe('Assignment State Machine Enforcement via API', () => {
+    const riderToken = generateToken({
+      id: 'usr_rider_01',
+      email: 'rider@aidflow.org',
+      role: 'RIDER',
+      name: 'Carlos Ruiz'
+    });
+
+    it('rejects unauthenticated transition requests with 401', async () => {
+      const res = await request(app)
+        .patch('/api/assignments/asg_seed_01/state')
+        .send({
+          targetStatus: ASSIGNMENT_STATUS.ACCEPTED
+        });
+
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe(ERROR_CODES.UNAUTHORIZED);
+    });
+
     it('rejects an invalid state jump with 400 and INVALID_STATE_TRANSITION', async () => {
       // Seed assignment is in PENDING_ACCEPTANCE. Attempting jump directly to DELIVERED is illegal.
       const res = await request(app)
         .patch('/api/assignments/asg_seed_01/state')
+        .set('Authorization', `Bearer ${riderToken}`)
         .send({
           targetStatus: ASSIGNMENT_STATUS.DELIVERED
         });
@@ -98,6 +119,7 @@ describe('AidFlow Server Integration Tests', () => {
     it('allows a valid sequential transition from PENDING_ACCEPTANCE to ACCEPTED', async () => {
       const res = await request(app)
         .patch('/api/assignments/asg_seed_01/state')
+        .set('Authorization', `Bearer ${riderToken}`)
         .send({
           targetStatus: ASSIGNMENT_STATUS.ACCEPTED
         });

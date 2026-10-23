@@ -5,14 +5,19 @@ import {
   ASSIGNMENT_STATUS,
   canTransitionAssignment,
   ERROR_CODES,
-  SOCKET_EVENTS
+  SOCKET_EVENTS,
+  ROLES
 } from '@aidflow/shared';
 import { validateBody } from '../middleware/validator.js';
+import { authenticate, requireRoles } from '../middleware/auth.js';
 import { Assignment } from '../models/Assignment.js';
 import { isDatabaseConnected } from '../config/database.js';
 import { broadcastEvent } from '../socket/index.js';
 
 const router = Router();
+
+// Protect all assignment endpoints with authentication
+router.use(authenticate);
 
 const inMemoryAssignments = [
   {
@@ -75,7 +80,7 @@ router.get('/', async (req, res, next) => {
 /**
  * POST /api/assignments
  */
-router.post('/', validateBody(assignmentSchema), async (req, res, next) => {
+router.post('/', requireRoles(ROLES.ADMIN, ROLES.SHELTER_MANAGER), validateBody(assignmentSchema), async (req, res, next) => {
   try {
     const data = req.validatedBody;
 
@@ -132,7 +137,11 @@ router.get('/:id', async (req, res, next) => {
  * PATCH /api/assignments/:id/state
  * Enforces valid state machine transitions
  */
-router.patch('/:id/state', validateBody(assignmentTransitionSchema), async (req, res, next) => {
+router.patch(
+  '/:id/state',
+  requireRoles(ROLES.RIDER, ROLES.ADMIN, ROLES.SHELTER_MANAGER),
+  validateBody(assignmentTransitionSchema),
+  async (req, res, next) => {
   try {
     const { id } = req.params;
     const { targetStatus, reason, coordinates } = req.validatedBody;

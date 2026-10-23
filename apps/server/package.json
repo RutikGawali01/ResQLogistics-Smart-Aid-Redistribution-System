@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "seed:users": "node src/seeds/seedUsers.js",
     "test": "vitest run"
   },
   "dependencies": {
     "@aidflow/shared": "*",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
