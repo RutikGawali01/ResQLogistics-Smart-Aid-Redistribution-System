@@ -139,7 +139,9 @@ describe('AidFlow Core Models & REST API Integration Tests', () => {
     });
 
     it('lists donations with filtering by aidType and status', async () => {
-      const res = await request(app).get('/api/donations?aidType=PRODUCE&status=AVAILABLE');
+      const res = await request(app)
+        .get('/api/donations?aidType=PRODUCE&status=AVAILABLE')
+        .set('Authorization', `Bearer ${donorToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -149,7 +151,9 @@ describe('AidFlow Core Models & REST API Integration Tests', () => {
     });
 
     it('retrieves single donation by ID', async () => {
-      const res = await request(app).get(`/api/donations/${createdDonationId}`);
+      const res = await request(app)
+        .get(`/api/donations/${createdDonationId}`)
+        .set('Authorization', `Bearer ${donorToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -207,7 +211,9 @@ describe('AidFlow Core Models & REST API Integration Tests', () => {
     });
 
     it('retrieves shelters list with demand metadata', async () => {
-      const res = await request(app).get('/api/shelters?isOpen=true');
+      const res = await request(app)
+        .get('/api/shelters?isOpen=true')
+        .set('Authorization', `Bearer ${shelterManagerToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -281,7 +287,9 @@ describe('AidFlow Core Models & REST API Integration Tests', () => {
     });
 
     it('retrieves riders list with capacity metadata', async () => {
-      const res = await request(app).get('/api/riders');
+      const res = await request(app)
+        .get('/api/riders')
+        .set('Authorization', `Bearer ${riderToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -385,7 +393,9 @@ describe('AidFlow Core Models & REST API Integration Tests', () => {
       expect(res.body.data.allocatedQuantity).toBe(20);
 
       // Verify donation availableQuantity is decremented
-      const donRes = await request(app).get(`/api/donations/${donationId}`);
+      const donRes = await request(app)
+        .get(`/api/donations/${donationId}`)
+        .set('Authorization', `Bearer ${donorToken}`);
       expect(donRes.body.data.availableQuantity).toBe(initialAvailable - 20);
     });
 
@@ -405,6 +415,19 @@ describe('AidFlow Core Models & REST API Integration Tests', () => {
       expect(res.status).toBe(409);
       expect(res.body.success).toBe(false);
       expect(res.body.error.code).toBe(ERROR_CODES.CONFLICT);
+    });
+
+    it('rejects unauthenticated transition requests with 401', async () => {
+      const assignmentId = seededData.assignment1._id.toString();
+      const res = await request(app)
+        .patch(`/api/assignments/${assignmentId}/state`)
+        .send({
+          targetStatus: ASSIGNMENT_STATUS.ACCEPTED
+        });
+
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe(ERROR_CODES.UNAUTHORIZED);
     });
 
     it('rejects invalid state transition according to state machine rules', async () => {
@@ -442,7 +465,9 @@ describe('AidFlow Core Models & REST API Integration Tests', () => {
   describe('6. Event History Retrieval', () => {
     it('retrieves event history for an assignment (GET /api/assignments/:id/events)', async () => {
       const assignmentId = seededData.assignment1._id.toString();
-      const res = await request(app).get(`/api/assignments/${assignmentId}/events`);
+      const res = await request(app)
+        .get(`/api/assignments/${assignmentId}/events`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

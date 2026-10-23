@@ -11,8 +11,16 @@ async function startServer() {
   // Initialize Socket.IO
   initSocketServer(httpServer, config.corsOrigin);
 
-  // Attempt database connection
-  await connectDatabase();
+  // Attempt database connection and seed demo accounts if connected
+  const conn = await connectDatabase();
+  if (conn) {
+    try {
+      const { seedUsers } = await import('./seeds/seedUsers.js');
+      await seedUsers();
+    } catch (e) {
+      console.warn('[Server] Notice on demo account auto-seed:', e.message);
+    }
+  }
 
   httpServer.listen(config.port, () => {
     console.log(`\n======================================================`);

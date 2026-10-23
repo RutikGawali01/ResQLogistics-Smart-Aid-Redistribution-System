@@ -20,6 +20,9 @@ import { broadcastEvent } from '../socket/index.js';
 
 const router = Router();
 
+// Protect all assignment endpoints with authentication
+router.use(authenticate);
+
 const inMemoryAssignments = [
   {
     id: 'asg_seed_01',
@@ -97,7 +100,7 @@ router.get('/', async (req, res, next) => {
 router.post(
   '/',
   authenticate,
-  requireRoles(ROLES.ADMIN),
+  requireRoles(ROLES.ADMIN, ROLES.SHELTER_MANAGER),
   validateBody(assignmentSchema),
   async (req, res, next) => {
     try {
@@ -290,6 +293,7 @@ router.get('/:id/events', async (req, res, next) => {
 router.patch(
   '/:id/state',
   authenticate,
+  requireRoles(ROLES.RIDER, ROLES.ADMIN, ROLES.SHELTER_MANAGER),
   validateBody(assignmentTransitionSchema),
   async (req, res, next) => {
     try {

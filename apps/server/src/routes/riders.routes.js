@@ -18,6 +18,9 @@ import { broadcastEvent } from '../socket/index.js';
 
 const router = Router();
 
+// Protect all rider routes with authentication
+router.use(authenticate);
+
 const inMemoryRiders = [
   {
     id: 'rdr_seed_01',
@@ -330,6 +333,7 @@ router.patch(
 router.post(
   '/:id/location',
   authenticate,
+  requireRoles(ROLES.RIDER, ROLES.ADMIN),
   validateBody(riderLocationSchema),
   async (req, res, next) => {
     try {

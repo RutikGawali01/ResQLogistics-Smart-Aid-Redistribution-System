@@ -35,8 +35,8 @@ export const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters'),
-  role: roleSchema,
-  phone: z.string().min(7, 'Valid phone number is required'),
+  role: roleSchema.optional().default('DONOR'),
+  phone: z.string().optional(),
   organization: z.string().optional()
 });
 
@@ -45,7 +45,7 @@ export const userSchema = z.object({
   email: z.string().email(),
   name: z.string(),
   role: roleSchema,
-  phone: z.string(),
+  phone: z.string().optional(),
   organization: z.string().optional(),
   active: z.boolean().default(true),
   createdAt: z.string().datetime().optional()

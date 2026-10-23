@@ -18,6 +18,9 @@ import { broadcastEvent } from '../socket/index.js';
 
 const router = Router();
 
+// Protect all donation routes with authentication
+router.use(authenticate);
+
 // Fallback in-memory donations for disconnected development
 const inMemoryDonations = [
   {
@@ -305,7 +308,11 @@ router.patch(
  * POST /api/donations/:id/reserve
  * Reserve surplus aid for a shelter
  */
-router.post('/:id/reserve', authenticate, async (req, res, next) => {
+router.post(
+  '/:id/reserve',
+  authenticate,
+  requireRoles(ROLES.SHELTER_MANAGER, ROLES.ADMIN),
+  async (req, res, next) => {
   try {
     const { id } = req.params;
     const { shelterId, requestedQuantity, quantity } = req.body;

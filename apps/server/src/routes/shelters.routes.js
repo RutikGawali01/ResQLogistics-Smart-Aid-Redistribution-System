@@ -16,6 +16,9 @@ import { broadcastEvent } from '../socket/index.js';
 
 const router = Router();
 
+// Protect all shelter routes with authentication
+router.use(authenticate);
+
 const inMemoryShelters = [
   {
     id: 'shl_seed_01',
@@ -304,7 +307,7 @@ router.patch(
 /**
  * PATCH /api/shelters/:id/capacity (Legacy / Compatibility)
  */
-router.patch('/:id/capacity', async (req, res, next) => {
+router.patch('/:id/capacity', requireRoles(ROLES.SHELTER_MANAGER, ROLES.ADMIN), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { currentOccupancy, urgencyLevel, mealsNeededPerDay, maxCapacity } = req.body;

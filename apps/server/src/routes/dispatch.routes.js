@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { ERROR_CODES, SOCKET_EVENTS, ASSIGNMENT_STATUS } from '@aidflow/shared';
+import { ERROR_CODES, SOCKET_EVENTS, ASSIGNMENT_STATUS, ROLES } from '@aidflow/shared';
+import { authenticate, requireRoles } from '../middleware/auth.js';
 import { Donation } from '../models/Donation.js';
 import { Shelter } from '../models/Shelter.js';
 import { Rider } from '../models/Rider.js';
@@ -8,6 +9,9 @@ import { isDatabaseConnected } from '../config/database.js';
 import { broadcastEvent } from '../socket/index.js';
 
 const router = Router();
+
+// Protect all dispatch routes with authentication
+router.use(authenticate);
 
 // Euclidean distance approximation for dispatch matching
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -26,7 +30,7 @@ function calculateDistanceKm(lat1, lon1, lat2, lon2) {
  * GET /api/dispatch/overview
  * Real-time summary of dispatch status
  */
-router.get('/overview', async (req, res, next) => {
+router.get('/overview', requireRoles(ROLES.ADMIN, ROLES.SHELTER_MANAGER), async (req, res, next) => {
   try {
     return res.success(
       {
@@ -47,7 +51,7 @@ router.get('/overview', async (req, res, next) => {
  * POST /api/dispatch/recommend
  * Matches unassigned donations to nearest available riders and recipient shelters
  */
-router.post('/recommend', async (req, res, next) => {
+router.post('/recommend', requireRoles(ROLES.ADMIN, ROLES.SHELTER_MANAGER), async (req, res, next) => {
   try {
     const { donationId, shelterId } = req.body;
 
