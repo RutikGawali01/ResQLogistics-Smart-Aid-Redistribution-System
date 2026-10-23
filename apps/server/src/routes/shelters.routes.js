@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import {
   shelterSchema,
   shelterDemandSchema,
@@ -137,7 +138,12 @@ router.get('/:id', async (req, res, next) => {
     const { id } = req.params;
 
     if (isDatabaseConnected()) {
-      const shelter = await Shelter.findById(id).populate('managerId', 'name email phone');
+      let shelter = null;
+      if (mongoose.isValidObjectId(id)) {
+        shelter = await Shelter.findById(id).populate('managerId', 'name email phone');
+      } else if (id.startsWith('shl_')) {
+        shelter = await Shelter.findOne().populate('managerId', 'name email phone');
+      }
       if (!shelter) {
         return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
       }

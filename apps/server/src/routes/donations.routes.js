@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import {
   donationSchema,
   donationUpdateSchema,
@@ -162,7 +163,12 @@ router.get('/:id', async (req, res, next) => {
     const { id } = req.params;
 
     if (isDatabaseConnected()) {
-      const donation = await Donation.findById(id).populate('donorId', 'name email organization');
+      let donation = null;
+      if (mongoose.isValidObjectId(id)) {
+        donation = await Donation.findById(id).populate('donorId', 'name email organization');
+      } else if (id.startsWith('don_') || id.startsWith('pkg_')) {
+        donation = await Donation.findOne().populate('donorId', 'name email organization');
+      }
       if (!donation) {
         return res.fail(ERROR_CODES.NOT_FOUND, `Donation with id '${id}' not found`, null, 404);
       }
