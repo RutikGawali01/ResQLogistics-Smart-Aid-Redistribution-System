@@ -342,7 +342,7 @@ export async function runSeed({ quiet = false } = {}) {
     donationId: donation3._id,
     shelterId: shelter3._id,
     riderId: rider1._id,
-    allocatedQuantity: 75,
+    allocatedQuantity: 40,
     status: ASSIGNMENT_STATUS.PICKUP_IN_PROGRESS,
     deadline: donation3.safeUseDeadline,
     pickupLocation: donation3.pickupLocation,

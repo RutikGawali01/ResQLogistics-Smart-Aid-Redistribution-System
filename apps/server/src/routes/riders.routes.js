@@ -420,14 +420,9 @@ router.patch(
  * POST /api/riders/:id/location & /api/riders/:id/telemetry
  * Update live GPS telemetry
  */
-router.post(
-  ['/:id/location', '/:id/telemetry'],
-  authenticate,
-  requireRoles(ROLES.RIDER, ROLES.ADMIN),
-  validateBody(riderLocationSchema),
-  async (req, res, next) => {
-    try {
-      const { id } = req.params;
+const handleLocationUpdate = async (req, res, next) => {
+  try {
+    const { id } = req.params;
       const location = req.validatedBody;
 
       if (isDatabaseConnected()) {
@@ -469,7 +464,22 @@ router.post(
     } catch (err) {
       next(err);
     }
-  }
+  };
+
+router.post(
+  ['/:id/location', '/:id/telemetry'],
+  authenticate,
+  requireRoles(ROLES.RIDER, ROLES.ADMIN),
+  validateBody(riderLocationSchema),
+  handleLocationUpdate
+);
+
+router.patch(
+  ['/:id/location', '/:id/telemetry'],
+  authenticate,
+  requireRoles(ROLES.RIDER, ROLES.ADMIN),
+  validateBody(riderLocationSchema),
+  handleLocationUpdate
 );
 
 export default router;

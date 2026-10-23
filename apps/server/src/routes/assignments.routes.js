@@ -380,12 +380,15 @@ router.patch(
         // Release or update associated rider and donation entities upon terminal transitions
         if (targetStatus === ASSIGNMENT_STATUS.DELIVERED) {
           if (assignment.riderId) {
-            await Rider.findByIdAndUpdate(assignment.riderId, {
-              $inc: { availableCapacity: assignment.allocatedQuantity },
-              activeAssignmentId: null,
-              status: 'AVAILABLE',
-              isAvailable: true
-            });
+            const riderDoc = await Rider.findById(assignment.riderId);
+            if (riderDoc) {
+              const maxCap = riderDoc.capacity || riderDoc.maxCapacityKg || 40;
+              riderDoc.availableCapacity = Math.min(maxCap, (riderDoc.availableCapacity || 0) + (assignment.allocatedQuantity || 0));
+              riderDoc.activeAssignmentId = null;
+              riderDoc.status = 'AVAILABLE';
+              riderDoc.isAvailable = true;
+              await riderDoc.save();
+            }
           }
           await Donation.findByIdAndUpdate(assignment.donationId, { status: 'DELIVERED' });
         } else if (targetStatus === ASSIGNMENT_STATUS.CANCELLED || targetStatus === ASSIGNMENT_STATUS.FAILED) {
@@ -395,12 +398,15 @@ router.patch(
             status: 'AVAILABLE'
           });
           if (assignment.riderId) {
-            await Rider.findByIdAndUpdate(assignment.riderId, {
-              $inc: { availableCapacity: assignment.allocatedQuantity },
-              activeAssignmentId: null,
-              status: 'AVAILABLE',
-              isAvailable: true
-            });
+            const riderDoc = await Rider.findById(assignment.riderId);
+            if (riderDoc) {
+              const maxCap = riderDoc.capacity || riderDoc.maxCapacityKg || 40;
+              riderDoc.availableCapacity = Math.min(maxCap, (riderDoc.availableCapacity || 0) + (assignment.allocatedQuantity || 0));
+              riderDoc.activeAssignmentId = null;
+              riderDoc.status = 'AVAILABLE';
+              riderDoc.isAvailable = true;
+              await riderDoc.save();
+            }
           }
         }
 

@@ -89,9 +89,9 @@ riderSchema.pre('validate', function (next) {
     this.availableCapacity = this.capacity;
   }
 
-  // Validate availableCapacity <= capacity
+  // Validate and auto-clamp availableCapacity <= capacity
   if (this.availableCapacity > this.capacity) {
-    return next(new Error('availableCapacity cannot exceed total capacity'));
+    this.availableCapacity = this.capacity;
   }
 
   // Sync isAvailable with status
