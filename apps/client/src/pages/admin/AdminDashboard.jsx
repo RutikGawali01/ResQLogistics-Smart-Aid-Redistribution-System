@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { donationsService } from '../../services/donationsService.js';
 import { sheltersService } from '../../services/sheltersService.js';
@@ -349,14 +350,25 @@ export function AdminDashboard() {
               <MapPin className="w-4 h-4 text-emerald-400" />
               Live Redistribution Geospatial Map
             </h3>
-            <span className="text-[11px] text-slate-400">San Francisco Bay Area Cluster</span>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-slate-400">San Francisco Bay Area Cluster</span>
+              <Link
+                to="/admin/operations"
+                className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 transition-colors"
+              >
+                <span>Full Command Grid</span>
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
           </div>
-          <div className="h-80 rounded-xl overflow-hidden border border-slate-800">
+          <div className="h-96 rounded-xl overflow-hidden border border-slate-800">
             <MapPreview
               donations={donations}
               shelters={shelters}
               riders={riders}
               assignments={assignments}
+              height="100%"
+              isMockData={forceMock}
             />
           </div>
         </div>

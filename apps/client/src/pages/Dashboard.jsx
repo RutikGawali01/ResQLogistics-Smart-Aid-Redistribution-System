@@ -158,7 +158,13 @@ export function Dashboard() {
 
         {/* Primary Row: Map Grid + Assignment State Machine */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <MapPreview donations={donations} shelters={shelters} riders={riders} />
+          <MapPreview
+            donations={donations}
+            shelters={shelters}
+            riders={riders}
+            assignments={assignments}
+            isMockData={forceMock}
+          />
           <AssignmentStateMachineVisualizer
             onTransition={handleAssignmentTransition}
             isLiveBackend={isLiveBackend}

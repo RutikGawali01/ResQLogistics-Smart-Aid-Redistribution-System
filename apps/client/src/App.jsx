@@ -10,6 +10,7 @@ import { AdminDonationsPage } from './pages/admin/AdminDonationsPage.jsx';
 import { AdminSheltersPage } from './pages/admin/AdminSheltersPage.jsx';
 import { AdminRidersPage } from './pages/admin/AdminRidersPage.jsx';
 import { AdminContractsPage } from './pages/admin/AdminContractsPage.jsx';
+import { LiveOperationsPage } from './pages/admin/LiveOperationsPage.jsx';
 import { DonorDashboard } from './pages/donor/DonorDashboard.jsx';
 import { DonorCreateDonationPage } from './pages/donor/DonorCreateDonationPage.jsx';
 import { RiderDashboard } from './pages/rider/RiderDashboard.jsx';
@@ -47,6 +48,14 @@ export function App() {
               element={
                 <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
                   <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/operations"
+              element={
+                <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                  <LiveOperationsPage />
                 </ProtectedRoute>
               }
             />
