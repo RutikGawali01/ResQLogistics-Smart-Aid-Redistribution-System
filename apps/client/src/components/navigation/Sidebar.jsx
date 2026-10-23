@@ -20,7 +20,8 @@ import {
   LogOut,
   X,
   Layers,
-  Sparkles
+  Sparkles,
+  Radio
 } from 'lucide-react';
 
 export function Sidebar({ isOpen = false, onClose }) {
@@ -44,6 +45,7 @@ export function Sidebar({ isOpen = false, onClose }) {
       case ROLES.ADMIN:
         return [
           { to: '/admin', label: 'Command Dashboard', icon: LayoutDashboard, end: true },
+          { to: '/admin/operations', label: 'Live Operations & Map', icon: Radio },
           { to: '/admin/donations', label: 'Surplus Aid Pool', icon: Package },
           { to: '/admin/shelters', label: 'Shelters & Relief Hubs', icon: Building2 },
           { to: '/admin/riders', label: 'Courier Fleet', icon: Bike },
