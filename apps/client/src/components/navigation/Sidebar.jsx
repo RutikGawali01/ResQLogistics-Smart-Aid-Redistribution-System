@@ -15,7 +15,6 @@ import {
   Inbox,
   Activity,
   Sliders,
-  Shield,
   HeartHandshake,
   LogOut,
   X,
@@ -25,20 +24,9 @@ import {
 } from 'lucide-react';
 
 export function Sidebar({ isOpen = false, onClose }) {
-  const { user, role, switchRole, forceMock, toggleForceMock, logout } = useAuth();
+  const { user, role, forceMock, toggleForceMock, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-
-  const handleRoleChange = (e) => {
-    const newRole = e.target.value;
-    switchRole(newRole);
-    // Navigate to default page for that role
-    if (newRole === ROLES.ADMIN) navigate('/admin');
-    else if (newRole === ROLES.DONOR) navigate('/donor');
-    else if (newRole === ROLES.RIDER) navigate('/rider');
-    else if (newRole === ROLES.SHELTER_MANAGER) navigate('/shelter');
-    if (onClose) onClose();
-  };
 
   const getNavLinks = () => {
     switch (role) {
@@ -126,28 +114,6 @@ export function Sidebar({ isOpen = false, onClose }) {
           </button>
         </div>
 
-        {/* Role Quick Switcher Pill */}
-        <div className="p-3.5 mx-3 mt-3 rounded-xl bg-slate-900/80 border border-slate-800">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-              <Shield className="w-3 h-3 text-emerald-400" />
-              Active Role Switcher
-            </span>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-              {role}
-            </span>
-          </div>
-          <select
-            value={role || ROLES.ADMIN}
-            onChange={handleRoleChange}
-            className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700/80 rounded-lg text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-          >
-            <option value={ROLES.ADMIN}>Admin (Platform Control)</option>
-            <option value={ROLES.DONOR}>Donor (Surplus Provider)</option>
-            <option value={ROLES.RIDER}>Rider (Courier / Transit)</option>
-            <option value={ROLES.SHELTER_MANAGER}>Shelter Manager (Hub Intake)</option>
-          </select>
-        </div>
 
         {/* Navigation Links */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
