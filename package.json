@@ -1,0 +1,26 @@
+{
+  "name": "aidflow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:all",
+    "dev:all": "concurrently -n \"server,worker,client\" -c \"blue,yellow,green\" \"npm run dev --workspace=@aidflow/server\" \"npm run dev --workspace=@aidflow/worker\" \"npm run dev --workspace=@aidflow/client\"",
+    "dev:server": "npm run dev --workspace=@aidflow/server",
+    "dev:client": "npm run dev --workspace=@aidflow/client",
+    "dev:worker": "npm run dev --workspace=@aidflow/worker",
+    "test": "npm run test --workspaces --if-present",
+    "test:shared": "npm run test --workspace=@aidflow/shared",
+    "test:server": "npm run test --workspace=@aidflow/server",
+    "test:client": "npm run test --workspace=@aidflow/client",
+    "test:worker": "npm run test --workspace=@aidflow/worker",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
