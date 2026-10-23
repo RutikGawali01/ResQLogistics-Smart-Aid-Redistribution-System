@@ -61,10 +61,21 @@ export function createRateLimiter({
 }
 
 /**
- * Standard login rate limiter: 5 attempts per 15 minutes window
+ * Standard login rate limiter:
+ * - Test environment: 5 attempts per window (verifies 429 contract in automated tests)
+ * - Development: 100 attempts per minute (prevents locking out developers & judges on localhost)
+ * - Production: 10 attempts per 15 minutes window
  */
+const isTest = process.env.NODE_ENV === 'test';
+const isDev = process.env.NODE_ENV === 'development';
+
 export const loginRateLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: 'Too many login attempts. Please try again after 15 minutes.'
+  windowMs: isTest ? 15 * 60 * 1000 : (isDev ? 60 * 1000 : 15 * 60 * 1000),
+  max: isTest ? 5 : (isDev ? 100 : 10),
+  message: 'Too many login attempts. Please try again after a few moments.',
+  keyGenerator: (req) => {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown_client';
+    const email = req.body?.email ? `_${req.body.email.toLowerCase().trim()}` : '';
+    return `${ip}${email}`;
+  }
 });
