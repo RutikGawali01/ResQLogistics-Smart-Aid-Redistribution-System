@@ -119,5 +119,46 @@ export const donationsService = {
         isMock: false
       };
     }
+  },
+
+  /**
+   * Reserves surplus aid for a shelter.
+   * Calls POST /api/donations/:id/reserve via Axios.
+   */
+  async reserveDonation(id, { shelterId, requestedQuantity, quantity } = {}, { forceMock = false } = {}) {
+    const qty = Number(requestedQuantity || quantity);
+    if (forceMock) {
+      const item = inMemoryDonations.find((d) => d.id === id);
+      if (!item) return { success: false, error: 'Donation not found', isMock: true };
+      const currentAvail = item.availableQuantity !== undefined ? item.availableQuantity : item.quantity;
+      item.availableQuantity = Math.max(0, currentAvail - (qty || currentAvail));
+      if (item.availableQuantity === 0) item.status = 'RESERVED';
+      return {
+        success: true,
+        data: {
+          donation: item,
+          reservation: { id: `res_${Date.now()}`, quantity: qty || currentAvail, shelterId }
+        },
+        isMock: true
+      };
+    }
+
+    try {
+      const payload = {
+        shelterId,
+        requestedQuantity: qty
+      };
+      const res = await apiClient.post(`/donations/${id}/reserve`, payload);
+      return { success: true, data: res.data?.data || res.data, isMock: false };
+    } catch (err) {
+      return {
+        success: false,
+        error: err.message || 'Failed to reserve donation',
+        code: err.code,
+        status: err.status,
+        details: err.details,
+        isMock: false
+      };
+    }
   }
 };

@@ -12,6 +12,8 @@ import { validateBody } from '../middleware/validator.js';
 import { authenticate, requireRoles } from '../middleware/auth.js';
 import { guardProtectedFields } from '../middleware/guardProtectedFields.js';
 import { Donation } from '../models/Donation.js';
+import { Shelter } from '../models/Shelter.js';
+import { User } from '../models/User.js';
 import { Reservation } from '../models/Reservation.js';
 import { Event } from '../models/Event.js';
 import { isDatabaseConnected } from '../config/database.js';
@@ -322,40 +324,65 @@ router.post(
   try {
     const { id } = req.params;
     const { shelterId, requestedQuantity, quantity } = req.body;
+    let targetShelterId = shelterId;
     const qty = Number(requestedQuantity || quantity);
 
-    if (!shelterId || !qty || qty <= 0) {
+    if (!qty || qty <= 0) {
       return res.fail(
         ERROR_CODES.BAD_REQUEST,
-        'Missing or invalid fields: shelterId and positive requestedQuantity are required'
+        'Positive requestedQuantity is required to reserve aid package'
       );
     }
 
     if (isDatabaseConnected()) {
-      const donation = await Donation.findById(id);
+      if (!targetShelterId || !mongoose.isValidObjectId(targetShelterId)) {
+        const userShelter = req.user?.id && mongoose.isValidObjectId(req.user.id)
+          ? await Shelter.findOne({ managerId: req.user.id })
+          : null;
+        if (userShelter) {
+          targetShelterId = userShelter._id;
+        } else {
+          const firstShelter = await Shelter.findOne();
+          if (firstShelter) targetShelterId = firstShelter._id;
+        }
+      }
+
+      if (!targetShelterId) {
+        return res.fail(ERROR_CODES.BAD_REQUEST, 'A valid shelterId is required to claim aid');
+      }
+
+      const donation = mongoose.isValidObjectId(id) ? await Donation.findById(id) : null;
       if (!donation) {
         return res.fail(ERROR_CODES.NOT_FOUND, `Donation '${id}' not found`, null, 404);
       }
 
-      if (donation.availableQuantity < qty) {
+      const currentAvail = donation.availableQuantity !== undefined ? donation.availableQuantity : donation.quantity;
+      if (currentAvail < qty) {
         return res.fail(
           ERROR_CODES.CONFLICT,
-          `Insufficient available quantity. Requested: ${qty}, Available: ${donation.availableQuantity}`,
-          { availableQuantity: donation.availableQuantity, requestedQuantity: qty },
+          `Insufficient available quantity. Requested: ${qty}, Available: ${currentAvail}`,
+          { availableQuantity: currentAvail, requestedQuantity: qty },
           409
         );
       }
 
-      donation.availableQuantity -= qty;
-      if (donation.availableQuantity === 0) {
+      donation.availableQuantity = currentAvail - qty;
+      if (donation.availableQuantity <= 0) {
+        donation.availableQuantity = 0;
         donation.status = 'RESERVED';
       }
       await donation.save();
 
+      let targetUserId = req.user?.id;
+      if (!mongoose.isValidObjectId(targetUserId)) {
+        const userDoc = (await User.findOne({ role: ROLES.SHELTER_MANAGER })) || (await User.findOne());
+        targetUserId = userDoc?._id || donation.donorId;
+      }
+
       const reservation = await Reservation.create({
-        donationId: id,
-        shelterId,
-        reservedByUserId: req.user?.id || donation.donorId,
+        donationId: donation._id,
+        shelterId: targetShelterId,
+        reservedByUserId: targetUserId,
         quantity: qty,
         requestedQuantity: qty,
         status: 'CONFIRMED',
@@ -369,7 +396,7 @@ router.post(
         eventType: 'RESERVATION_CREATED',
         actorId: req.user?.id,
         actorRole: req.user?.role,
-        metadata: { donationId: id, shelterId, quantity: qty }
+        metadata: { donationId: donation._id, shelterId: targetShelterId, quantity: qty }
       });
 
       broadcastEvent(SOCKET_EVENTS.DONATION_RESERVED, { donation, reservation });

@@ -28,7 +28,9 @@ import {
   Send,
   Sparkles,
   Layers,
-  RefreshCw
+  RefreshCw,
+  X,
+  PackageCheck
 } from 'lucide-react';
 
 export function ShelterDashboard() {
@@ -40,6 +42,13 @@ export function ShelterDashboard() {
   const [incomingDeliveries, setIncomingDeliveries] = useState([]);
   const [availableAid, setAvailableAid] = useState([]);
   const [actionNotice, setActionNotice] = useState(null);
+
+  // Aid claiming & reservation modal states
+  const [requestingAidId, setRequestingAidId] = useState(null);
+  const [claimModalDonation, setClaimModalDonation] = useState(null);
+  const [claimQuantity, setClaimQuantity] = useState('');
+  const [claimError, setClaimError] = useState(null);
+  const [catalogNotice, setCatalogNotice] = useState(null);
 
   // Shelter Open/Close status
   const [isOpen, setIsOpen] = useState(true);
@@ -299,6 +308,84 @@ export function ShelterDashboard() {
         setError(res.error || 'Failed to confirm intake on server');
         loadData();
       }
+    }
+  };
+
+  const handleOpenClaimModal = (donation) => {
+    setClaimModalDonation(donation);
+    const avail = donation.availableQuantity !== undefined ? donation.availableQuantity : donation.quantity;
+    setClaimQuantity(String(avail || ''));
+    setClaimError(null);
+  };
+
+  const handleConfirmClaim = async (e) => {
+    if (e?.preventDefault) e.preventDefault();
+    if (!claimModalDonation) return;
+
+    const qty = Number(claimQuantity);
+    const maxAvail =
+      claimModalDonation.availableQuantity !== undefined
+        ? claimModalDonation.availableQuantity
+        : claimModalDonation.quantity;
+
+    if (!qty || qty <= 0) {
+      setClaimError('Please enter a valid positive quantity to claim.');
+      return;
+    }
+
+    if (qty > maxAvail) {
+      setClaimError(
+        `Cannot claim ${qty} ${claimModalDonation.unit}. Only ${maxAvail} ${claimModalDonation.unit} currently available.`
+      );
+      return;
+    }
+
+    const donationId = claimModalDonation.id || claimModalDonation._id;
+    setRequestingAidId(donationId);
+    setClaimError(null);
+
+    try {
+      const res = await donationsService.reserveDonation(
+        donationId,
+        {
+          shelterId: shelter?.id || shelter?._id,
+          requestedQuantity: qty
+        },
+        { forceMock }
+      );
+
+      if (res.success) {
+        const remaining = Math.max(0, maxAvail - qty);
+        setAvailableAid((prev) =>
+          prev
+            .map((d) => {
+              const dId = d.id || d._id;
+              if (dId === donationId) {
+                return {
+                  ...d,
+                  availableQuantity: remaining,
+                  status: remaining === 0 ? 'RESERVED' : d.status
+                };
+              }
+              return d;
+            })
+            .filter((d) => (d.availableQuantity !== undefined ? d.availableQuantity > 0 : d.status === 'AVAILABLE'))
+        );
+
+        setCatalogNotice({
+          type: 'success',
+          message: `Successfully claimed ${qty} ${claimModalDonation.unit} of "${claimModalDonation.title}" for ${shelter?.name || 'this shelter'}. Dispatch reservation confirmed for 3 hours.`
+        });
+        setClaimModalDonation(null);
+        setTimeout(() => setCatalogNotice(null), 8000);
+        loadData();
+      } else {
+        setClaimError(res.error || 'Failed to claim aid package on server');
+      }
+    } catch (err) {
+      setClaimError(err.message || 'An unexpected error occurred while claiming aid.');
+    } finally {
+      setRequestingAidId(null);
     }
   };
 
@@ -687,11 +774,48 @@ export function ShelterDashboard() {
       </section>
 
       {/* Available Surplus Aid Marketplace Preview */}
-      <section className="space-y-3">
-        <h3 className="text-base font-semibold text-slate-100">Available Surplus Aid Catalog</h3>
-        <p className="text-xs text-slate-400">
-          Directly claim available aid packages from regional commercial donors.
-        </p>
+      <section className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
+              <Package className="w-4 h-4 text-emerald-400" />
+              Available Surplus Aid Catalog
+            </h3>
+            <p className="text-xs text-slate-400">
+              Directly claim available aid packages from regional commercial donors into your shelter intake.
+            </p>
+          </div>
+          <span className="text-xs text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-full border border-slate-700/60 self-start">
+            {availableAid.length} Packages Available
+          </span>
+        </div>
+
+        {/* Catalog Notification Banner */}
+        {catalogNotice && (
+          <div
+            className={`p-3.5 rounded-xl text-xs flex items-center justify-between gap-3 animate-in fade-in shadow-lg ${
+              catalogNotice.type === 'error'
+                ? 'bg-rose-950/60 border border-rose-800 text-rose-200'
+                : 'bg-emerald-950/60 border border-emerald-800 text-emerald-200'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {catalogNotice.type === 'error' ? (
+                <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              )}
+              <span className="font-medium">{catalogNotice.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCatalogNotice(null)}
+              className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800/60 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {availableAid.length === 0 ? (
           <EmptyState
@@ -700,39 +824,187 @@ export function ShelterDashboard() {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {availableAid.slice(0, 3).map((item) => (
-              <Card key={item.id} hover className="flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <CategoryBadge category={item.category} size="sm" />
-                    <span className="text-xs font-semibold text-emerald-400 font-mono">
-                      {item.quantity} {item.unit}
-                    </span>
+            {availableAid.map((item) => {
+              const donationId = item.id || item._id;
+              const currentAvailable =
+                item.availableQuantity !== undefined ? item.availableQuantity : item.quantity;
+              const isClaiming = requestingAidId === donationId;
+
+              return (
+                <Card key={donationId} hover className="flex flex-col justify-between border-slate-800/90 bg-slate-900/60">
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <CategoryBadge category={item.category || item.aidType} size="sm" />
+                      <span className="text-xs font-semibold text-emerald-400 font-mono bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/40">
+                        {currentAvailable} {item.unit}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-semibold text-slate-100 line-clamp-1">{item.title}</h4>
+                    <p className="text-xs text-slate-400 line-clamp-2">
+                      {item.description || 'Verified commercial surplus aid.'}
+                    </p>
                   </div>
-                  <h4 className="text-sm font-semibold text-slate-100 line-clamp-1">{item.title}</h4>
-                  <p className="text-xs text-slate-400 line-clamp-2">
-                    {item.description || 'Verified commercial surplus aid.'}
-                  </p>
-                </div>
-                <div className="pt-4 mt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-                  <span className="text-slate-400 truncate max-w-[140px]">
-                    {item.pickupLocation?.contactName || 'Donor Facility'}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() =>
-                      setActionNotice(`Aid package "${item.title}" reserved for ${shelter?.name || 'this shelter'}.`)
-                    }
-                  >
-                    Request Aid
-                  </Button>
-                </div>
-              </Card>
-            ))}
+                  <div className="pt-4 mt-3 border-t border-slate-800/90 flex items-center justify-between text-xs">
+                    <span className="text-slate-400 truncate max-w-[130px] font-medium">
+                      {item.pickupLocation?.contactName || 'Donor Facility'}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      icon={Package}
+                      isLoading={isClaiming}
+                      onClick={() => handleOpenClaimModal(item)}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-md shadow-emerald-950/40"
+                    >
+                      Request Aid
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
       </section>
+
+      {/* Interactive Aid Claim & Reservation Modal Dialog */}
+      {claimModalDonation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="glass-card border border-slate-700/80 bg-slate-900/95 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-5 relative">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-800 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <CategoryBadge category={claimModalDonation.category || claimModalDonation.aidType} size="sm" />
+                  <span className="text-xs text-emerald-400 font-mono font-medium">
+                    Available: {claimModalDonation.availableQuantity ?? claimModalDonation.quantity} {claimModalDonation.unit}
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-white tracking-tight">
+                  Request Aid: {claimModalDonation.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setClaimModalDonation(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Donation Summary & Storage Fit Details */}
+            <div className="space-y-2 text-xs bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80">
+              <div className="flex justify-between text-slate-300">
+                <span className="text-slate-500">Donor Facility:</span>
+                <span className="font-medium text-slate-200">
+                  {claimModalDonation.pickupLocation?.contactName || 'Verified Regional Donor'}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span className="text-slate-500">Pickup Address:</span>
+                <span className="font-medium text-slate-200 truncate max-w-[240px]">
+                  {claimModalDonation.pickupLocation?.address || 'San Francisco Distribution Center'}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span className="text-slate-500">Receiving Shelter:</span>
+                <span className="font-semibold text-amber-400">
+                  {shelter?.name || 'Downtown Hope Refuge'}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span className="text-slate-500">Handling Requirements:</span>
+                <span className="font-medium text-slate-200">
+                  {claimModalDonation.handlingRequirements || claimModalDonation.storageRequirement || 'ROOM_TEMPERATURE'}
+                </span>
+              </div>
+            </div>
+
+            {claimError && (
+              <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl text-xs text-rose-300 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                <span>{claimError}</span>
+              </div>
+            )}
+
+            {/* Claim Form */}
+            <form onSubmit={handleConfirmClaim} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-300 flex justify-between">
+                  <span>Quantity to Request ({claimModalDonation.unit})</span>
+                  <span className="text-slate-500">
+                    Max: {claimModalDonation.availableQuantity ?? claimModalDonation.quantity} {claimModalDonation.unit}
+                  </span>
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  max={claimModalDonation.availableQuantity ?? claimModalDonation.quantity}
+                  value={claimQuantity}
+                  onChange={(e) => setClaimQuantity(e.target.value)}
+                  placeholder="Enter quantity to claim..."
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {/* Quick Fill Buttons */}
+              <div className="flex gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setClaimQuantity(
+                      String(
+                        Math.max(
+                          1,
+                          Math.round(
+                            (claimModalDonation.availableQuantity ?? claimModalDonation.quantity) * 0.5
+                          )
+                        )
+                      )
+                    )
+                  }
+                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 transition-colors"
+                >
+                  Claim 50%
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setClaimQuantity(
+                      String(claimModalDonation.availableQuantity ?? claimModalDonation.quantity)
+                    )
+                  }
+                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] border border-slate-700 font-medium transition-colors"
+                >
+                  Claim Full Package ({claimModalDonation.availableQuantity ?? claimModalDonation.quantity} {claimModalDonation.unit})
+                </button>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => setClaimModalDonation(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  icon={PackageCheck}
+                  isLoading={requestingAidId === (claimModalDonation.id || claimModalDonation._id)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-md shadow-emerald-950/40"
+                >
+                  Confirm Aid Request
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
