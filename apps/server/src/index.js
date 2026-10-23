@@ -15,8 +15,16 @@ async function startServer() {
   const conn = await connectDatabase();
   if (conn) {
     try {
-      const { seedUsers } = await import('./seeds/seedUsers.js');
-      await seedUsers();
+      const { Rider } = await import('./models/Rider.js');
+      const riderCount = await Rider.countDocuments();
+      if (riderCount === 0) {
+        console.log('[Server] Database is empty. Running initial AidFlow deterministic seeding...');
+        const { runSeed } = await import('./seed.js');
+        await runSeed({ quiet: false });
+      } else {
+        const { seedUsers } = await import('./seeds/seedUsers.js');
+        await seedUsers();
+      }
     } catch (e) {
       console.warn('[Server] Notice on demo account auto-seed:', e.message);
     }

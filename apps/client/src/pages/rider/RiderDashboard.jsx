@@ -161,9 +161,10 @@ export function RiderDashboard() {
     const nextStatus = riderInfo?.status === 'AVAILABLE' ? 'OFFLINE' : 'AVAILABLE';
     setError(null);
     try {
-      const res = await ridersService.updateStatus(riderTargetId, nextStatus, { forceMock });
+      const targetId = riderInfo?.id || riderInfo?._id || user?.id || user?._id;
+      const res = await ridersService.updateStatus(targetId, nextStatus, { forceMock });
       if (res.success) {
-        setRiderInfo((prev) => ({ ...prev, status: nextStatus, isAvailable: nextStatus === 'AVAILABLE' }));
+        setRiderInfo((prev) => ({ ...prev, ...(res.data || {}), status: nextStatus, isAvailable: nextStatus === 'AVAILABLE' }));
         setActionSuccess(`Dispatch status updated to ${nextStatus}`);
       } else {
         setError(res.error || 'Failed to update courier status');
@@ -182,7 +183,8 @@ export function RiderDashboard() {
       heading: 45,
       speedKmh: 19
     };
-    const res = await ridersService.updateLocation(riderTargetId, updatedLoc, { forceMock });
+    const targetId = riderInfo?.id || riderInfo?._id || user?.id || user?._id;
+    const res = await ridersService.updateLocation(targetId, updatedLoc, { forceMock });
     if (res.success) {
       setRiderInfo((prev) => ({ ...prev, currentLocation: updatedLoc }));
       setTelemetryPingMsg(`GPS Telemetry broadcast at ${new Date().toLocaleTimeString()}`);

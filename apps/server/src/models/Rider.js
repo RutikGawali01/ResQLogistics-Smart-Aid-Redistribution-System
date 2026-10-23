@@ -85,8 +85,18 @@ riderSchema.pre('validate', function (next) {
   if (!this.capacity && this.maxCapacityKg) this.capacity = this.maxCapacityKg;
   if (!this.maxCapacityKg && this.capacity) this.maxCapacityKg = this.capacity;
 
+  if (!this.capacity || this.capacity < 0.1) {
+    this.capacity = 25;
+    this.maxCapacityKg = 25;
+  }
+
   if (this.availableCapacity === undefined || this.availableCapacity === null) {
     this.availableCapacity = this.capacity;
+  }
+
+  // Ensure availableCapacity is non-negative
+  if (this.availableCapacity < 0) {
+    this.availableCapacity = 0;
   }
 
   // Validate and auto-clamp availableCapacity <= capacity

@@ -12,6 +12,12 @@ export function errorHandler(err, req, res, next) {
       .json(formatErrorResponse(ERROR_CODES.BAD_REQUEST, `Invalid resource identifier: '${err.value}'`));
   }
 
+  if (err.name === 'ValidationError') {
+    return res
+      .status(400)
+      .json(formatErrorResponse(ERROR_CODES.BAD_REQUEST, err.message, err.errors));
+  }
+
   const status = err.status || err.statusCode || 500;
   const code = err.code || ERROR_CODES.INTERNAL_SERVER_ERROR;
   const message = err.message || 'An unexpected internal error occurred';
