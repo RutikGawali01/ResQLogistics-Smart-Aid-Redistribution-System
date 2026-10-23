@@ -349,7 +349,8 @@ export function ShelterDashboard() {
         donationId,
         {
           shelterId: shelter?.id || shelter?._id,
-          requestedQuantity: qty
+          requestedQuantity: qty,
+          title: claimModalDonation.title
         },
         { forceMock }
       );
@@ -380,7 +381,16 @@ export function ShelterDashboard() {
         setTimeout(() => setCatalogNotice(null), 8000);
         loadData();
       } else {
-        setClaimError(res.error || 'Failed to claim aid package on server');
+        if (res.status === 404) {
+          setClaimError('This aid package was already claimed or the catalog refreshed. Refreshing available aid...');
+          loadData();
+          setTimeout(() => {
+            setClaimModalDonation(null);
+            setClaimError(null);
+          }, 2000);
+        } else {
+          setClaimError(res.error || 'Failed to claim aid package on server');
+        }
       }
     } catch (err) {
       setClaimError(err.message || 'An unexpected error occurred while claiming aid.');

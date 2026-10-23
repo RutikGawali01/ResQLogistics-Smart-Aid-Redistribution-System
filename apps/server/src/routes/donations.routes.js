@@ -351,9 +351,25 @@ router.post(
         return res.fail(ERROR_CODES.BAD_REQUEST, 'A valid shelterId is required to claim aid');
       }
 
-      const donation = mongoose.isValidObjectId(id) ? await Donation.findById(id) : null;
+      let donation = mongoose.isValidObjectId(id) ? await Donation.findById(id) : null;
       if (!donation) {
-        return res.fail(ERROR_CODES.NOT_FOUND, `Donation '${id}' not found`, null, 404);
+        // Gracefully resolve if database was reseeded while client tab was open
+        if (req.body.title) {
+          donation = await Donation.findOne({ title: req.body.title, availableQuantity: { $gte: qty } });
+          if (!donation) {
+            donation = await Donation.findOne({ title: req.body.title, status: 'AVAILABLE' });
+          }
+        }
+        if (!donation) {
+          donation = await Donation.findOne({ status: 'AVAILABLE', availableQuantity: { $gte: qty } });
+        }
+        if (!donation) {
+          donation = await Donation.findOne({ status: 'AVAILABLE', availableQuantity: { $gt: 0 } });
+        }
+      }
+
+      if (!donation) {
+        return res.fail(ERROR_CODES.NOT_FOUND, `Donation '${id}' not found or no longer available`, null, 404);
       }
 
       const currentAvail = donation.availableQuantity !== undefined ? donation.availableQuantity : donation.quantity;

@@ -146,7 +146,8 @@ export const donationsService = {
     try {
       const payload = {
         shelterId,
-        requestedQuantity: qty
+        requestedQuantity: qty,
+        title
       };
       const res = await apiClient.post(`/donations/${id}/reserve`, payload);
       return { success: true, data: res.data?.data || res.data, isMock: false };
