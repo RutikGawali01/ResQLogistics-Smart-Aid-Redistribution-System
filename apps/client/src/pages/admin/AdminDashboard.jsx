@@ -13,7 +13,9 @@ import { Button } from '../../components/ui/FormElements.jsx';
 import { LoadingState, EmptyState, ErrorState } from '../../components/ui/States.jsx';
 import { MapPreview } from '../../components/MapPreview.jsx';
 import { AssignmentStateMachineVisualizer } from '../../components/AssignmentStateMachineVisualizer.jsx';
-import { ASSIGNMENT_STATUS } from '@aidflow/shared';
+import { ASSIGNMENT_STATUS, SOCKET_EVENTS } from '@aidflow/shared';
+import { subscribeToEvent } from '../../services/socket.js';
+import { Alert } from '../../components/ui/Alert.jsx';
 import {
   Package,
   Building2,
@@ -37,6 +39,8 @@ export function AdminDashboard() {
   const { forceMock } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
 
   const [telemetry, setTelemetry] = useState(null);
   const [donations, setDonations] = useState([]);
@@ -77,7 +81,7 @@ export function AdminDashboard() {
   ]);
 
   // Recent Platform Events Stream
-  const [recentEvents] = useState([
+  const [recentEvents, setRecentEvents] = useState([
     {
       id: 'evt_01',
       type: 'ASSIGNMENT_STATE_CHANGED',
@@ -112,8 +116,8 @@ export function AdminDashboard() {
     }
   ]);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [telRes, donRes, shlRes, rdrRes, asgRes] = await Promise.all([
@@ -132,22 +136,116 @@ export function AdminDashboard() {
     } catch (err) {
       setError(err.message || 'Failed to fetch operational telemetry');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
+
+    // Subscribe to live operational events
+    const unsubDonation = subscribeToEvent(SOCKET_EVENTS.DONATION_CREATED, (d) => {
+      if (d) {
+        setDonations((prev) => [d, ...prev]);
+        setRecentEvents((prev) => [
+          {
+            id: 'evt_' + Date.now(),
+            type: 'DONATION_CREATED',
+            entity: `Donation #${d.id || d._id}`,
+            description: `New aid: ${d.quantity} ${d.unit} of ${d.title || d.aidType || 'Supplies'}`,
+            actor: d.pickupLocation?.contactName || 'Donor',
+            timestamp: 'Just now'
+          },
+          ...prev.slice(0, 19)
+        ]);
+      }
+    });
+
+    const unsubShelter = subscribeToEvent(SOCKET_EVENTS.SHELTER_CAPACITY_UPDATED, (s) => {
+      if (s) {
+        const id = s.id || s._id;
+        setShelters((prev) => prev.map((item) => ((item.id === id || item._id === id) ? { ...item, ...s } : item)));
+        setRecentEvents((prev) => [
+          {
+            id: 'evt_' + Date.now(),
+            type: 'SHELTER_CAPACITY_UPDATED',
+            entity: s.name || `Shelter #${id}`,
+            description: `Occupancy: ${s.capacity?.currentOccupancy || s.currentDemand}/${s.capacity?.maxCapacity || s.receivingCapacity}`,
+            actor: 'Shelter Manager',
+            timestamp: 'Just now'
+          },
+          ...prev.slice(0, 19)
+        ]);
+      }
+    });
+
+    const unsubRider = subscribeToEvent(SOCKET_EVENTS.RIDER_STATUS_CHANGED, (r) => {
+      if (r) {
+        setRiders((prev) =>
+          prev.map((item) => (item.id === r.riderId ? { ...item, status: r.status, isAvailable: r.isAvailable } : item))
+        );
+      }
+    });
+
+    const unsubAsgState = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_STATE_CHANGED, (asg) => {
+      if (asg) {
+        const id = asg.assignmentId || asg.id;
+        setAssignments((prev) =>
+          prev.map((item) => (item.id === id ? { ...item, ...asg, status: asg.newStatus || asg.status } : item))
+        );
+        setRecentEvents((prev) => [
+          {
+            id: 'evt_' + Date.now(),
+            type: 'ASSIGNMENT_STATE_CHANGED',
+            entity: `Assignment #${id}`,
+            description: `Mission transitioned to ${asg.newStatus || asg.status}`,
+            actor: 'Dispatch System',
+            timestamp: 'Just now'
+          },
+          ...prev.slice(0, 19)
+        ]);
+      }
+    });
+
+    const unsubAsgOffer = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_OFFERED, (asg) => {
+      if (asg) {
+        const id = asg.assignmentId || asg.id;
+        setAssignments((prev) => {
+          if (prev.some((item) => item.id === id)) return prev;
+          return [asg, ...prev];
+        });
+      }
+    });
+
+    return () => {
+      unsubDonation();
+      unsubShelter();
+      unsubRider();
+      unsubAsgState();
+      unsubAsgOffer();
+    };
   }, [forceMock]);
 
   const handleStateTransition = async (assignmentId, targetStatus) => {
-    const res = await assignmentsService.transitionState(assignmentId, targetStatus, { forceMock });
-    if (res.success && res.data) {
-      setAssignments((prev) =>
-        prev.map((a) => (a.id === assignmentId ? res.data : a))
-      );
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const res = await assignmentsService.transitionState(assignmentId, targetStatus, { forceMock });
+      if (res.success && res.data) {
+        setAssignments((prev) =>
+          prev.map((a) => (a.id === assignmentId ? res.data : a))
+        );
+        setActionSuccess(`Mission #${assignmentId} transitioned to ${targetStatus}`);
+        return res;
+      } else {
+        const errMsg = res.details?.reason || res.error || 'State transition failed';
+        setActionError(errMsg);
+        return res;
+      }
+    } catch (err) {
+      setActionError(err.message || 'State transition failed');
+      return { success: false, error: err.message };
     }
-    return res;
   };
 
   const handleAcknowledgeAlert = (alertId) => {
@@ -180,6 +278,16 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-6">
+      {actionError && (
+        <Alert variant="error" onClose={() => setActionError(null)}>
+          {actionError}
+        </Alert>
+      )}
+      {actionSuccess && (
+        <Alert variant="success" onClose={() => setActionSuccess(null)}>
+          {actionSuccess}
+        </Alert>
+      )}
       {/* Top Banner & Refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
         <div>

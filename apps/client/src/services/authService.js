@@ -54,10 +54,12 @@ export const authService = {
         isMock: false
       };
     } catch (error) {
-      // Do not invent fake success; rethrow or return standardized error
       return {
         success: false,
         error: error.message || 'Authentication failed on server',
+        code: error.code || 'UNAUTHORIZED',
+        status: error.status || 401,
+        details: error.details || null,
         isMock: false
       };
     }
@@ -114,6 +116,9 @@ export const authService = {
       return {
         success: false,
         error: error.message || 'Registration failed on server',
+        code: error.code || 'VALIDATION_ERROR',
+        status: error.status || 422,
+        details: error.details || null,
         isMock: false
       };
     }

@@ -9,7 +9,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { LoadingState, EmptyState, ErrorState } from '../../components/ui/States.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
 import { MapPreview } from '../../components/MapPreview.jsx';
-import { ASSIGNMENT_STATUS } from '@aidflow/shared';
+import { ASSIGNMENT_STATUS, SOCKET_EVENTS } from '@aidflow/shared';
+import { subscribeToEvent } from '../../services/socket.js';
 import {
   Bike,
   Navigation,
@@ -21,7 +22,8 @@ import {
   AlertCircle,
   Truck,
   Package,
-  Sparkles
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 
 export function RiderDashboard() {
@@ -32,8 +34,8 @@ export function RiderDashboard() {
   const [riderInfo, setRiderInfo] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [asgRes, rdrRes] = await Promise.all([
@@ -43,15 +45,58 @@ export function RiderDashboard() {
       setAssignments(asgRes.data || []);
       setRiderInfo(rdrRes.data || null);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to load dispatch data');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadData();
-  }, [forceMock]);
+
+    // Subscribe to live events for couriers
+    const unsubOffered = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_OFFERED, (asg) => {
+      if (asg) {
+        setAssignments((prev) => {
+          const id = asg.assignmentId || asg.id;
+          if (prev.some((a) => a.id === id)) return prev;
+          return [asg, ...prev];
+        });
+        setActionSuccess('New delivery assignment offered to your queue!');
+      }
+    });
+
+    const unsubState = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_STATE_CHANGED, (asg) => {
+      if (asg) {
+        const id = asg.assignmentId || asg.id;
+        setAssignments((prev) => {
+          const exists = prev.some((a) => a.id === id);
+          if (exists) {
+            return prev.map((a) =>
+              a.id === id ? { ...a, ...asg, status: asg.newStatus || asg.status } : a
+            );
+          }
+          return [asg, ...prev];
+        });
+      }
+    });
+
+    const unsubRider = subscribeToEvent(SOCKET_EVENTS.RIDER_STATUS_CHANGED, (data) => {
+      if (data && (data.riderId === user?.id || data.riderId === riderInfo?.id)) {
+        setRiderInfo((prev) => ({
+          ...prev,
+          status: data.status || prev?.status,
+          isAvailable: data.isAvailable !== undefined ? data.isAvailable : prev?.isAvailable
+        }));
+      }
+    });
+
+    return () => {
+      unsubOffered();
+      unsubState();
+      unsubRider();
+    };
+  }, [forceMock, user?.id, riderInfo?.id]);
 
   // Current active assignment for this rider
   const activeAssignment = assignments.find(
@@ -68,22 +113,36 @@ export function RiderDashboard() {
   const handleTransition = async (targetStatus) => {
     if (!activeAssignment) return;
     setActionSuccess(null);
-    const res = await assignmentsService.transitionState(activeAssignment.id, targetStatus, { forceMock });
-    if (res.success && res.data) {
-      setAssignments((prev) =>
-        prev.map((a) => (a.id === activeAssignment.id ? res.data : a))
-      );
-      setActionSuccess(`Status transitioned to ${targetStatus}`);
-    } else {
-      setError(res.error || 'State transition failed');
+    setError(null);
+    try {
+      const res = await assignmentsService.transitionState(activeAssignment.id, targetStatus, { forceMock });
+      if (res.success && res.data) {
+        setAssignments((prev) =>
+          prev.map((a) => (a.id === activeAssignment.id ? res.data : a))
+        );
+        setActionSuccess(`Status transitioned to ${targetStatus}`);
+      } else {
+        const errMsg = res.details?.reason || res.error || 'State transition failed';
+        setError(errMsg);
+      }
+    } catch (err) {
+      setError(err.message || 'State transition failed');
     }
   };
 
   const handleToggleStatus = async () => {
     const nextStatus = riderInfo?.status === 'AVAILABLE' ? 'OFFLINE' : 'AVAILABLE';
-    const res = await ridersService.updateStatus(user?.id || 'usr_rider_01', nextStatus, { forceMock });
-    if (res.success) {
-      setRiderInfo((prev) => ({ ...prev, status: nextStatus }));
+    setError(null);
+    try {
+      const res = await ridersService.updateStatus(user?.id || 'usr_rider_01', nextStatus, { forceMock });
+      if (res.success) {
+        setRiderInfo((prev) => ({ ...prev, status: nextStatus }));
+        setActionSuccess(`Status updated to ${nextStatus}`);
+      } else {
+        setError(res.error || 'Failed to update courier status');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to update courier status');
     }
   };
 
@@ -92,6 +151,11 @@ export function RiderDashboard() {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <Alert variant="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
       {/* Rider Status & Welcome Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
         <div className="flex items-center gap-4">

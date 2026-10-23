@@ -33,11 +33,14 @@ export function AdminDonationsPage() {
   if (error) return <ErrorState message={error} />;
 
   const filtered = donations.filter((d) => {
-    const matchesSearch =
-      d.title.toLowerCase().includes(search.toLowerCase()) ||
-      d.pickupLocation?.address.toLowerCase().includes(search.toLowerCase()) ||
-      d.id.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = categoryFilter === 'ALL' || d.category === categoryFilter;
+    const title = (d.title || d.aidType || 'Aid Package').toLowerCase();
+    const address = (d.pickupLocation?.address || '').toLowerCase();
+    const id = (d.id || d._id || '').toString().toLowerCase();
+    const cat = d.category || d.aidType;
+    const q = search.toLowerCase();
+
+    const matchesSearch = title.includes(q) || address.includes(q) || id.includes(q);
+    const matchesCategory = categoryFilter === 'ALL' || cat === categoryFilter;
     return matchesSearch && matchesCategory;
   });
 
@@ -101,30 +104,32 @@ export function AdminDonationsPage() {
           </TableHeader>
           <TableBody>
             {filtered.map((d) => (
-              <TableRow key={d.id}>
+              <TableRow key={d.id || d._id}>
                 <TableCell>
-                  <div className="font-medium text-slate-100">{d.title}</div>
-                  <div className="text-[11px] font-mono text-slate-500">{d.id}</div>
+                  <div className="font-medium text-slate-100">{d.title || d.aidType || 'Aid Package'}</div>
+                  <div className="text-[11px] font-mono text-slate-500">{d.id || d._id}</div>
                 </TableCell>
                 <TableCell>
-                  <CategoryBadge category={d.category} size="sm" />
+                  <CategoryBadge category={d.category || d.aidType} size="sm" />
                 </TableCell>
                 <TableCell className="font-semibold text-slate-200">
                   {d.quantity} <span className="text-xs text-slate-400 font-normal">{d.unit}</span>
                 </TableCell>
                 <TableCell>
                   <span className="text-xs text-slate-400 font-mono">
-                    {d.storageRequirement}
+                    {d.storageRequirement || d.handlingRequirements || 'ROOM_TEMPERATURE'}
                   </span>
                 </TableCell>
                 <TableCell>
                   <div className="text-xs text-slate-300 flex items-center gap-1">
                     <MapPin className="w-3 h-3 text-slate-500 flex-shrink-0" />
-                    <span className="truncate max-w-xs">{d.pickupLocation?.address}</span>
+                    <span className="truncate max-w-xs">{d.pickupLocation?.address || 'Pickup point'}</span>
                   </div>
                 </TableCell>
                 <TableCell className="text-xs text-slate-400">
-                  {new Date(d.expirationDate).toLocaleDateString()}
+                  {d.expirationDate || d.safeUseDeadline
+                    ? new Date(d.expirationDate || d.safeUseDeadline).toLocaleDateString()
+                    : 'N/A'}
                 </TableCell>
                 <TableCell>
                   <Badge variant={d.status === 'AVAILABLE' ? 'emerald' : 'blue'} size="sm">

@@ -56,17 +56,20 @@ export function DonorCreateDonationPage() {
       const payload = {
         donorId: user?.id || 'usr_donor_01',
         title: form.title,
+        aidType: form.category,
         category: form.category,
         quantity: Number(form.quantity),
         unit: form.unit,
+        handlingRequirements: form.storageRequirement,
         storageRequirement: form.storageRequirement,
+        safeUseDeadline: new Date(form.expirationDate).toISOString(),
         expirationDate: new Date(form.expirationDate).toISOString(),
         description: form.description,
         allergens: form.allergens,
         pickupLocation: {
           address: form.address,
-          latitude: 37.789 + (Math.random() - 0.5) * 0.02,
-          longitude: -122.405 + (Math.random() - 0.5) * 0.02,
+          latitude: 37.789,
+          longitude: -122.405,
           contactName: form.contactName,
           contactPhone: form.contactPhone
         }
@@ -76,7 +79,12 @@ export function DonorCreateDonationPage() {
       if (res.success) {
         setSuccess(true);
       } else {
-        setError(res.error || 'Failed to register donation.');
+        let msg = res.error || 'Failed to register donation.';
+        if (res.details && Array.isArray(res.details)) {
+          const detailMsgs = res.details.map((d) => `${d.path?.join('.') || 'Field'}: ${d.message}`).join(' | ');
+          msg = `${msg}: ${detailMsgs}`;
+        }
+        setError(msg);
       }
     } catch (err) {
       setError(err.message || 'Submission error');

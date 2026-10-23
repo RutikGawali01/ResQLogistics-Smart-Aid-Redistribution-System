@@ -8,7 +8,8 @@ import { StatusBadge, UrgencyBadge, CategoryBadge, Badge } from '../../component
 import { Button, Input, Select, FormField } from '../../components/ui/FormElements.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/Table.jsx';
 import { LoadingState, EmptyState, ErrorState } from '../../components/ui/States.jsx';
-import { ASSIGNMENT_STATUS } from '@aidflow/shared';
+import { subscribeToEvent } from '../../services/socket.js';
+import { ASSIGNMENT_STATUS, SOCKET_EVENTS } from '@aidflow/shared';
 import {
   Building2,
   Users,
@@ -26,7 +27,8 @@ import {
   ChefHat,
   Send,
   Sparkles,
-  Layers
+  Layers,
+  RefreshCw
 } from 'lucide-react';
 
 export function ShelterDashboard() {
@@ -95,11 +97,11 @@ export function ShelterDashboard() {
       const myShelter = shlRes.data?.[0] || null;
       setShelter(myShelter);
       if (myShelter) {
-        setCurrentOccupancy(myShelter.capacity?.currentOccupancy || 88);
-        setMaxCapacity(myShelter.capacity?.maxCapacity || 100);
-        setMealsNeeded(myShelter.capacity?.mealsNeededPerDay || 150);
+        setCurrentOccupancy(myShelter.capacity?.currentOccupancy ?? 88);
+        setMaxCapacity(myShelter.capacity?.maxCapacity ?? 100);
+        setMealsNeeded(myShelter.capacity?.mealsNeededPerDay ?? 150);
         setUrgencyLevel(myShelter.urgencyLevel || 'HIGH');
-        setIsOpen(myShelter.active !== false);
+        setIsOpen(myShelter.isOpen !== false && myShelter.active !== false);
       }
 
       setIncomingDeliveries(
@@ -115,24 +117,67 @@ export function ShelterDashboard() {
 
   useEffect(() => {
     loadData();
-  }, [forceMock]);
 
-  // Toggle Shelter Open/Close Status
+    // Subscribe to live events (Task 5)
+    const unsubCapacity = subscribeToEvent(SOCKET_EVENTS.SHELTER_CAPACITY_UPDATED, (updatedShelter) => {
+      if (updatedShelter && (updatedShelter.id === shelter?.id || updatedShelter._id === shelter?.id)) {
+        setShelter(updatedShelter);
+        if (updatedShelter.capacity) {
+          setCurrentOccupancy(updatedShelter.capacity.currentOccupancy);
+          setMaxCapacity(updatedShelter.capacity.maxCapacity);
+        }
+      }
+    });
+
+    const unsubAsgState = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_STATE_CHANGED, (asg) => {
+      setIncomingDeliveries((prev) => {
+        const id = asg.assignmentId || asg.id;
+        const exists = prev.some((a) => a.id === id);
+        if (exists) {
+          return prev.map((a) => (a.id === id ? { ...a, ...asg, status: asg.newStatus || asg.status } : a));
+        }
+        return [asg, ...prev];
+      });
+    });
+
+    return () => {
+      unsubCapacity();
+      unsubAsgState();
+    };
+  }, [forceMock, shelter?.id]);
+
+  // Toggle Shelter Open/Close Status via Real Express API
   const handleToggleOpenClose = async () => {
+    if (!shelter) return;
     const nextState = !isOpen;
     setIsOpen(nextState);
-    const statusMsg = nextState
-      ? 'Shelter marked as OPEN for community relief and aid deliveries.'
-      : 'Shelter marked as TEMPORARILY CLOSED. Dispatch paused.';
-    setActionNotice(statusMsg);
+    setError(null);
+
+    const res = await sheltersService.updateStatus(
+      shelter.id,
+      { isOpen: nextState, urgencyLevel },
+      { forceMock }
+    );
+
+    if (res.success) {
+      const statusMsg = nextState
+        ? 'Shelter marked as OPEN for community relief and aid deliveries.'
+        : 'Shelter marked as TEMPORARILY CLOSED. Dispatch paused.';
+      setActionNotice(statusMsg);
+    } else {
+      setIsOpen(!nextState); // revert on failure
+      setError(res.error || 'Failed to update shelter intake status on server');
+    }
   };
 
-  // Update Receiving Capacity & Resource Availability
+  // Update Receiving Capacity & Resource Availability via Real Express API
   const handleUpdateCapacity = async (e) => {
     e.preventDefault();
     if (!shelter) return;
     setIsUpdating(true);
     setActionNotice(null);
+    setError(null);
+
     try {
       const res = await sheltersService.updateCapacity(
         shelter.id,
@@ -147,7 +192,7 @@ export function ShelterDashboard() {
       const urgRes = await sheltersService.updateUrgency(shelter.id, urgencyLevel, { forceMock });
 
       if (res.success && urgRes.success) {
-        setActionNotice('Receiving capacity, resource availability, and urgency levels successfully updated.');
+        setActionNotice('Receiving capacity, resource availability, and urgency levels successfully updated on server.');
         setShelter((prev) => ({
           ...prev,
           capacity: {
@@ -158,9 +203,12 @@ export function ShelterDashboard() {
           },
           urgencyLevel
         }));
+      } else {
+        const errorMsg = res.error || urgRes.error || 'Failed to update capacity on server';
+        setError(errorMsg);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Capacity update error');
     } finally {
       setIsUpdating(false);
     }
@@ -201,6 +249,8 @@ export function ShelterDashboard() {
     if (res.success) {
       setIncomingDeliveries((prev) => prev.filter((a) => a.id !== assignmentId));
       setActionNotice(`Shipment #${assignmentId} confirmed received into kitchen pantry.`);
+    } else {
+      setError(res.error || 'Failed to confirm intake on server');
     }
   };
 

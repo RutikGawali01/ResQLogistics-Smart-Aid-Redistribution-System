@@ -20,7 +20,7 @@ export function RegisterPage() {
     confirmPassword: ''
   });
 
-  const [isMockMode, setIsMockMode] = useState(true);
+  const [isMockMode, setIsMockMode] = useState(false);
   const [formValidation, setFormValidation] = useState(null);
 
   const handleChange = (field, value) => {

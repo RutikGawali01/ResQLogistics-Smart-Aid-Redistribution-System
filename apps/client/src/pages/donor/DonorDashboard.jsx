@@ -8,6 +8,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { CategoryBadge, Badge, StatusBadge } from '../../components/ui/Badge.jsx';
 import { Button } from '../../components/ui/FormElements.jsx';
 import { LoadingState, EmptyState, ErrorState } from '../../components/ui/States.jsx';
+import { connectSocket, disconnectSocket, subscribeToEvent } from '../../services/socket.js';
+import { SOCKET_EVENTS } from '@aidflow/shared';
 import {
   HeartHandshake,
   PlusCircle,
@@ -23,7 +25,8 @@ import {
   ArrowRight,
   ShieldCheck,
   Eye,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 
 export function DonorDashboard() {
@@ -31,29 +34,63 @@ export function DonorDashboard() {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [donations, setDonations] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [selectedDonation, setSelectedDonation] = useState(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [donRes, asgRes] = await Promise.all([
-          donationsService.getDonations({ forceMock }),
-          assignmentsService.getAssignments({ forceMock })
-        ]);
-        setDonations(donRes.data || []);
-        setAssignments(asgRes.data || []);
-      } catch (err) {
-        setError(err.message || 'Failed to load donations');
-      } finally {
-        setLoading(false);
-      }
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    setError(null);
+    try {
+      const [donRes, asgRes] = await Promise.all([
+        donationsService.getDonations({ forceMock }),
+        assignmentsService.getAssignments({ forceMock })
+      ]);
+      setDonations(donRes.data || []);
+      setAssignments(asgRes.data || []);
+    } catch (err) {
+      setError(err.message || 'Failed to load donations');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  useEffect(() => {
     fetchData();
+
+    // Subscribe to live events (Task 5: Refresh authoritative data when necessary)
+    const unsubCreated = subscribeToEvent(SOCKET_EVENTS.DONATION_CREATED, (newDon) => {
+      setDonations((prev) => [newDon, ...prev.filter((d) => d.id !== newDon.id)]);
+    });
+
+    const unsubReserved = subscribeToEvent(SOCKET_EVENTS.DONATION_RESERVED, ({ donation }) => {
+      if (donation) {
+        setDonations((prev) =>
+          prev.map((d) => (d.id === donation.id ? { ...d, ...donation } : d))
+        );
+      }
+    });
+
+    const unsubAsgState = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_STATE_CHANGED, (asg) => {
+      setAssignments((prev) => {
+        const id = asg.assignmentId || asg.id;
+        const exists = prev.some((a) => a.id === id);
+        if (exists) {
+          return prev.map((a) => (a.id === id ? { ...a, ...asg, status: asg.newStatus || asg.status } : a));
+        }
+        return [asg, ...prev];
+      });
+    });
+
+    return () => {
+      unsubCreated();
+      unsubReserved();
+      unsubAsgState();
+    };
   }, [forceMock]);
 
   if (loading) return <LoadingState message="Loading your donor impact dashboard..." />;

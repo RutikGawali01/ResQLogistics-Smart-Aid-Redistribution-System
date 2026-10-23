@@ -14,7 +14,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('admin@aidflow.org');
   const [password, setPassword] = useState('AidFlowAdmin!2026');
   const [selectedRole, setSelectedRole] = useState(ROLES.ADMIN);
-  const [isMockMode, setIsMockMode] = useState(true);
+  const [isMockMode, setIsMockMode] = useState(false);
 
   const demoAccounts = [
     { role: ROLES.ADMIN, email: 'admin@aidflow.org', label: 'Admin', icon: Shield },

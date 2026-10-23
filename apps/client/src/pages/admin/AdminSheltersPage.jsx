@@ -31,11 +31,12 @@ export function AdminSheltersPage() {
   if (loading) return <LoadingState message="Loading shelter registry..." />;
   if (error) return <ErrorState message={error} />;
 
-  const filtered = shelters.filter(
-    (s) =>
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.address.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = shelters.filter((s) => {
+    const name = (s.name || '').toLowerCase();
+    const addr = (s.address || s.location?.address || '').toLowerCase();
+    const q = search.toLowerCase();
+    return name.includes(q) || addr.includes(q);
+  });
 
   return (
     <div className="space-y-6">
@@ -78,15 +79,15 @@ export function AdminSheltersPage() {
           </TableHeader>
           <TableBody>
             {filtered.map((s) => {
-              const current = s.capacity?.currentOccupancy || 0;
-              const max = s.capacity?.maxCapacity || 100;
+              const current = s.capacity?.currentOccupancy || s.currentDemand || 0;
+              const max = s.capacity?.maxCapacity || s.receivingCapacity || 100;
               const pct = Math.min(Math.round((current / max) * 100), 100);
 
               return (
-                <TableRow key={s.id}>
+                <TableRow key={s.id || s._id}>
                   <TableCell>
                     <div className="font-semibold text-slate-100">{s.name}</div>
-                    <div className="text-xs text-slate-400">{s.address}</div>
+                    <div className="text-xs text-slate-400">{s.address || s.location?.address || 'AidFlow Hub'}</div>
                   </TableCell>
                   <TableCell>
                     <div className="w-36 space-y-1">
@@ -130,7 +131,7 @@ export function AdminSheltersPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-xs text-slate-400 font-mono">
-                    {s.contactPhone}
+                    {s.contactPhone || s.location?.contactPhone || 'N/A'}
                   </TableCell>
                 </TableRow>
               );

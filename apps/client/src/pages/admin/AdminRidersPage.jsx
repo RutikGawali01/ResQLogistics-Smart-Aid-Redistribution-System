@@ -31,12 +31,13 @@ export function AdminRidersPage() {
   if (loading) return <LoadingState message="Loading courier fleet..." />;
   if (error) return <ErrorState message={error} />;
 
-  const filtered = riders.filter(
-    (r) =>
-      r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.vehicleType.toLowerCase().includes(search.toLowerCase()) ||
-      r.status.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = riders.filter((r) => {
+    const name = (r.name || r.userId?.name || 'Courier Volunteer').toLowerCase();
+    const vehicle = (r.vehicleType || 'E_BIKE').toLowerCase();
+    const status = (r.status || (r.isAvailable ? 'AVAILABLE' : 'OFFLINE')).toLowerCase();
+    const q = search.toLowerCase();
+    return name.includes(q) || vehicle.includes(q) || status.includes(q);
+  });
 
   return (
     <div className="space-y-6">
@@ -78,34 +79,36 @@ export function AdminRidersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell>
-                  <div className="font-semibold text-slate-100">{r.name}</div>
-                  <div className="text-xs text-slate-400 font-mono">{r.phone}</div>
-                </TableCell>
-                <TableCell>
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
-                    {r.vehicleType}
-                  </span>
-                </TableCell>
-                <TableCell className="text-xs text-slate-300 font-medium">
-                  {r.maxCapacityKg} kg
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      r.status === 'AVAILABLE'
-                        ? 'emerald'
-                        : r.status === 'ON_DISPATCH'
-                        ? 'blue'
-                        : 'slate'
-                    }
-                    size="sm"
-                  >
-                    {r.status}
-                  </Badge>
-                </TableCell>
+            {filtered.map((r) => {
+              const riderStatus = r.status || (r.isAvailable ? 'AVAILABLE' : 'OFFLINE');
+              return (
+                <TableRow key={r.id || r._id}>
+                  <TableCell>
+                    <div className="font-semibold text-slate-100">{r.name || r.userId?.name || 'Courier Volunteer'}</div>
+                    <div className="text-xs text-slate-400 font-mono">{r.phone || r.userId?.phone || 'N/A'}</div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                      {r.vehicleType || 'E_BIKE'}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-xs text-slate-300 font-medium">
+                    {r.maxCapacityKg || r.capacity || 25} kg
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        riderStatus === 'AVAILABLE'
+                          ? 'emerald'
+                          : riderStatus === 'ON_DISPATCH'
+                          ? 'blue'
+                          : 'slate'
+                      }
+                      size="sm"
+                    >
+                      {riderStatus}
+                    </Badge>
+                  </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-3 text-xs">
                     <span className="flex items-center gap-1 text-amber-400 font-medium">
@@ -130,7 +133,8 @@ export function AdminRidersPage() {
                   )}
                 </TableCell>
               </TableRow>
-            ))}
+            );
+          })}
           </TableBody>
         </Table>
       )}

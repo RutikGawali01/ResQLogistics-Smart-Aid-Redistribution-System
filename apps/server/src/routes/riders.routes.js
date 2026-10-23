@@ -252,6 +252,67 @@ router.patch(
 );
 
 /**
+ * PATCH /api/riders/:id/status
+ * Alias allowing direct status updates
+ */
+router.patch(
+  '/:id/status',
+  authenticate,
+  requireRoles(ROLES.ADMIN, ROLES.RIDER),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const status = req.body.status;
+      const isAvailable = req.body.isAvailable !== undefined ? req.body.isAvailable : status === 'AVAILABLE';
+
+      if (isDatabaseConnected()) {
+        const rider = mongoose.isValidObjectId(id)
+          ? await Rider.findById(id)
+          : await Rider.findOne({ $or: [{ _id: mongoose.isValidObjectId(id) ? id : null }, { userId: id }] });
+
+        if (!rider) {
+          return res.fail(ERROR_CODES.NOT_FOUND, `Rider '${id}' not found`, null, 404);
+        }
+
+        const isOwner = rider.userId.toString() === req.user.id;
+        const isAdmin = req.user.role === ROLES.ADMIN;
+        if (!isOwner && !isAdmin) {
+          return res.fail(ERROR_CODES.FORBIDDEN, 'Forbidden: You cannot change another rider status', null, 403);
+        }
+
+        if (status) {
+          rider.status = status;
+          rider.isAvailable = status === 'AVAILABLE';
+        } else if (isAvailable !== undefined) {
+          rider.isAvailable = isAvailable;
+          rider.status = isAvailable ? 'AVAILABLE' : 'OFFLINE';
+        }
+
+        await rider.save();
+        broadcastEvent(SOCKET_EVENTS.RIDER_STATUS_CHANGED, {
+          riderId: id,
+          status: rider.status,
+          isAvailable: rider.isAvailable
+        });
+        return res.success(rider, 'Rider status updated');
+      }
+
+      const found = inMemoryRiders.find((r) => r.id === id || r.userId === id);
+      if (!found) {
+        return res.fail(ERROR_CODES.NOT_FOUND, `Rider '${id}' not found`, null, 404);
+      }
+      if (status) {
+        found.status = status;
+        found.isAvailable = status === 'AVAILABLE';
+      }
+      return res.success(found, 'Rider status updated (in-memory mode)');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
  * PATCH /api/riders/:id/capacity
  * Update rider load capacity. Prevents direct setting of availableCapacity.
  */
