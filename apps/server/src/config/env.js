@@ -14,7 +14,7 @@ export const config = {
   port: parseInt(process.env.PORT || '5000', 10),
   host: process.env.SERVER_HOST || 'localhost',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/aidflow',
+  mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27018/aidflow',
   jwt: {
     secret: process.env.JWT_SECRET || 'aidflow_dev_secret_key_minimum_32_characters_long_2026',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d'

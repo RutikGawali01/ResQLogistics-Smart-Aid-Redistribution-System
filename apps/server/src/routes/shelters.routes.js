@@ -1,7 +1,16 @@
 import { Router } from 'express';
-import { shelterSchema, ERROR_CODES, SOCKET_EVENTS } from '@aidflow/shared';
+import {
+  shelterSchema,
+  shelterDemandSchema,
+  shelterStatusSchema,
+  ERROR_CODES,
+  SOCKET_EVENTS,
+  ROLES
+} from '@aidflow/shared';
 import { validateBody } from '../middleware/validator.js';
+import { authenticate, requireRoles } from '../middleware/auth.js';
 import { Shelter } from '../models/Shelter.js';
+import { Event } from '../models/Event.js';
 import { isDatabaseConnected } from '../config/database.js';
 import { broadcastEvent } from '../socket/index.js';
 
@@ -14,9 +23,14 @@ const inMemoryShelters = [
     managerId: 'usr_shelter_01',
     address: '100 Mission Street, San Francisco, CA',
     location: {
+      address: '100 Mission Street, San Francisco, CA',
       latitude: 37.7915,
       longitude: -122.3980
     },
+    currentDemand: 150,
+    receivingCapacity: 100,
+    availableResources: ['REFRIGERATION', 'HOT_KITCHEN', 'DRY_STORAGE'],
+    isOpen: true,
     capacity: {
       currentOccupancy: 85,
       maxCapacity: 100,
@@ -28,46 +42,32 @@ const inMemoryShelters = [
     operatingHours: '24/7',
     active: true,
     createdAt: new Date().toISOString()
-  },
-  {
-    id: 'shl_seed_02',
-    name: 'St. Jude Community Center',
-    managerId: 'usr_shelter_02',
-    address: '450 Castro Street, San Francisco, CA',
-    location: {
-      latitude: 37.7609,
-      longitude: -122.4350
-    },
-    capacity: {
-      currentOccupancy: 30,
-      maxCapacity: 60,
-      mealsNeededPerDay: 80
-    },
-    urgencyLevel: 'MEDIUM',
-    acceptedCategories: ['NON_PERISHABLE', 'CLOTHING', 'HYGIENE'],
-    contactPhone: '+1-555-0177',
-    operatingHours: '08:00 - 20:00',
-    active: true,
-    createdAt: new Date().toISOString()
   }
 ];
 
 /**
  * GET /api/shelters
+ * List shelters with optional filters
  */
 router.get('/', async (req, res, next) => {
   try {
-    const { urgency } = req.query;
+    const { urgency, isOpen, minDemand } = req.query;
 
     if (isDatabaseConnected()) {
-      const filter = { active: true };
+      const filter = {};
       if (urgency) filter.urgencyLevel = urgency;
+      if (isOpen !== undefined) filter.isOpen = isOpen === 'true' || isOpen === true;
+      if (minDemand) filter.currentDemand = { $gte: Number(minDemand) };
+
       const shelters = await Shelter.find(filter);
       return res.success(shelters, 'Shelters retrieved successfully', { total: shelters.length });
     }
 
     let results = [...inMemoryShelters];
-    if (urgency) results = results.filter(s => s.urgencyLevel === urgency);
+    if (urgency) results = results.filter((s) => s.urgencyLevel === urgency);
+    if (isOpen !== undefined) results = results.filter((s) => String(s.isOpen) === String(isOpen));
+    if (minDemand) results = results.filter((s) => (s.currentDemand || 0) >= Number(minDemand));
+
     return res.success(results, 'Shelters retrieved (in-memory mode)', { total: results.length });
   } catch (err) {
     next(err);
@@ -76,44 +76,71 @@ router.get('/', async (req, res, next) => {
 
 /**
  * POST /api/shelters
+ * Register new shelter
  */
-router.post('/', validateBody(shelterSchema), async (req, res, next) => {
-  try {
-    const data = req.validatedBody;
+router.post(
+  '/',
+  authenticate,
+  requireRoles(ROLES.ADMIN, ROLES.SHELTER_MANAGER),
+  validateBody(shelterSchema),
+  async (req, res, next) => {
+    try {
+      const data = req.validatedBody;
+      const managerId = req.user.role === ROLES.ADMIN && data.managerId ? data.managerId : req.user.id;
 
-    if (isDatabaseConnected()) {
-      const created = await Shelter.create(data);
-      return res.success(created, 'Shelter registered successfully', null, 201);
+      const shelterPayload = {
+        ...data,
+        managerId,
+        currentDemand: data.currentDemand ?? data.capacity?.mealsNeededPerDay ?? 0,
+        receivingCapacity: data.receivingCapacity ?? data.capacity?.maxCapacity ?? 100,
+        isOpen: data.isOpen ?? data.active ?? true
+      };
+
+      if (isDatabaseConnected()) {
+        const created = await Shelter.create(shelterPayload);
+
+        await Event.logEvent({
+          entityType: 'SHELTER',
+          entityId: created._id,
+          eventType: 'SHELTER_CREATED',
+          actorId: req.user.id,
+          actorRole: req.user.role,
+          metadata: { name: created.name, managerId }
+        });
+
+        return res.success(created, 'Shelter registered successfully', null, 201);
+      }
+
+      const mockCreated = {
+        ...shelterPayload,
+        id: `shl_${Date.now()}`,
+        createdAt: new Date().toISOString()
+      };
+      inMemoryShelters.push(mockCreated);
+      return res.success(mockCreated, 'Shelter registered (in-memory mode)', null, 201);
+    } catch (err) {
+      next(err);
     }
-
-    const mockCreated = {
-      ...data,
-      id: `shl_${Date.now()}`,
-      createdAt: new Date().toISOString()
-    };
-    inMemoryShelters.push(mockCreated);
-    return res.success(mockCreated, 'Shelter registered (in-memory mode)', null, 201);
-  } catch (err) {
-    next(err);
   }
-});
+);
 
 /**
  * GET /api/shelters/:id
+ * Retrieve single shelter
  */
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
 
     if (isDatabaseConnected()) {
-      const shelter = await Shelter.findById(id);
+      const shelter = await Shelter.findById(id).populate('managerId', 'name email phone');
       if (!shelter) {
         return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
       }
       return res.success(shelter, 'Shelter found');
     }
 
-    const found = inMemoryShelters.find(s => s.id === id);
+    const found = inMemoryShelters.find((s) => s.id === id);
     if (!found) {
       return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
     }
@@ -124,12 +151,163 @@ router.get('/:id', async (req, res, next) => {
 });
 
 /**
- * PATCH /api/shelters/:id/capacity
+ * PATCH /api/shelters/:id/demand
+ * Update shelter currentDemand and receivingCapacity
+ */
+router.patch(
+  '/:id/demand',
+  authenticate,
+  requireRoles(ROLES.ADMIN, ROLES.SHELTER_MANAGER),
+  validateBody(shelterDemandSchema),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { currentDemand, receivingCapacity, mealsNeededPerDay } = req.validatedBody;
+
+      if (isDatabaseConnected()) {
+        const shelter = await Shelter.findById(id);
+        if (!shelter) {
+          return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
+        }
+
+        // Ownership authorization check
+        const isManager = shelter.managerId.toString() === req.user.id;
+        const isAdmin = req.user.role === ROLES.ADMIN;
+        if (!isManager && !isAdmin) {
+          return res.fail(
+            ERROR_CODES.FORBIDDEN,
+            'Forbidden: Only the designated shelter manager or platform admin can update demand',
+            null,
+            403
+          );
+        }
+
+        if (currentDemand !== undefined) {
+          shelter.currentDemand = currentDemand;
+          if (shelter.capacity) shelter.capacity.mealsNeededPerDay = currentDemand;
+        }
+        if (mealsNeededPerDay !== undefined) {
+          shelter.currentDemand = mealsNeededPerDay;
+          if (shelter.capacity) shelter.capacity.mealsNeededPerDay = mealsNeededPerDay;
+        }
+        if (receivingCapacity !== undefined) {
+          shelter.receivingCapacity = receivingCapacity;
+          if (shelter.capacity) shelter.capacity.maxCapacity = receivingCapacity;
+        }
+
+        await shelter.save();
+
+        await Event.logEvent({
+          entityType: 'SHELTER',
+          entityId: shelter._id,
+          eventType: 'SHELTER_DEMAND_UPDATED',
+          actorId: req.user.id,
+          actorRole: req.user.role,
+          metadata: { currentDemand: shelter.currentDemand, receivingCapacity: shelter.receivingCapacity }
+        });
+
+        broadcastEvent(SOCKET_EVENTS.SHELTER_CAPACITY_UPDATED, shelter);
+        return res.success(shelter, 'Shelter demand updated successfully');
+      }
+
+      const found = inMemoryShelters.find((s) => s.id === id);
+      if (!found) {
+        return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
+      }
+
+      if (found.managerId !== req.user.id && req.user.role !== ROLES.ADMIN) {
+        return res.fail(ERROR_CODES.FORBIDDEN, 'Forbidden: Not authorized to update shelter demand', null, 403);
+      }
+
+      if (currentDemand !== undefined) found.currentDemand = currentDemand;
+      if (receivingCapacity !== undefined) found.receivingCapacity = receivingCapacity;
+
+      return res.success(found, 'Shelter demand updated (in-memory mode)');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * PATCH /api/shelters/:id/status
+ * Update shelter isOpen status and urgencyLevel
+ */
+router.patch(
+  '/:id/status',
+  authenticate,
+  requireRoles(ROLES.ADMIN, ROLES.SHELTER_MANAGER),
+  validateBody(shelterStatusSchema),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { isOpen, urgencyLevel } = req.validatedBody;
+
+      if (isDatabaseConnected()) {
+        const shelter = await Shelter.findById(id);
+        if (!shelter) {
+          return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
+        }
+
+        // Ownership authorization check
+        const isManager = shelter.managerId.toString() === req.user.id;
+        const isAdmin = req.user.role === ROLES.ADMIN;
+        if (!isManager && !isAdmin) {
+          return res.fail(
+            ERROR_CODES.FORBIDDEN,
+            'Forbidden: Only the designated shelter manager or platform admin can update shelter status',
+            null,
+            403
+          );
+        }
+
+        if (isOpen !== undefined) {
+          shelter.isOpen = isOpen;
+          shelter.active = isOpen;
+        }
+        if (urgencyLevel) shelter.urgencyLevel = urgencyLevel;
+
+        await shelter.save();
+
+        await Event.logEvent({
+          entityType: 'SHELTER',
+          entityId: shelter._id,
+          eventType: 'SHELTER_STATUS_UPDATED',
+          actorId: req.user.id,
+          actorRole: req.user.role,
+          metadata: { isOpen: shelter.isOpen, urgencyLevel: shelter.urgencyLevel }
+        });
+
+        broadcastEvent(SOCKET_EVENTS.SHELTER_CAPACITY_UPDATED, shelter);
+        return res.success(shelter, 'Shelter status updated successfully');
+      }
+
+      const found = inMemoryShelters.find((s) => s.id === id);
+      if (!found) {
+        return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
+      }
+
+      if (found.managerId !== req.user.id && req.user.role !== ROLES.ADMIN) {
+        return res.fail(ERROR_CODES.FORBIDDEN, 'Forbidden: Not authorized to update shelter status', null, 403);
+      }
+
+      if (isOpen !== undefined) found.isOpen = isOpen;
+      if (urgencyLevel) found.urgencyLevel = urgencyLevel;
+
+      return res.success(found, 'Shelter status updated (in-memory mode)');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * PATCH /api/shelters/:id/capacity (Legacy / Compatibility)
  */
 router.patch('/:id/capacity', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { currentOccupancy, urgencyLevel, mealsNeededPerDay } = req.body;
+    const { currentOccupancy, urgencyLevel, mealsNeededPerDay, maxCapacity } = req.body;
 
     if (isDatabaseConnected()) {
       const shelter = await Shelter.findById(id);
@@ -137,8 +315,12 @@ router.patch('/:id/capacity', async (req, res, next) => {
         return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
       }
 
-      if (currentOccupancy !== undefined) shelter.capacity.currentOccupancy = currentOccupancy;
-      if (mealsNeededPerDay !== undefined) shelter.capacity.mealsNeededPerDay = mealsNeededPerDay;
+      if (currentOccupancy !== undefined) shelter.capacity.currentOccupancy = Number(currentOccupancy);
+      if (maxCapacity !== undefined) shelter.capacity.maxCapacity = Number(maxCapacity);
+      if (mealsNeededPerDay !== undefined) {
+        shelter.capacity.mealsNeededPerDay = Number(mealsNeededPerDay);
+        shelter.currentDemand = Number(mealsNeededPerDay);
+      }
       if (urgencyLevel) shelter.urgencyLevel = urgencyLevel;
 
       await shelter.save();
@@ -146,16 +328,19 @@ router.patch('/:id/capacity', async (req, res, next) => {
       return res.success(shelter, 'Shelter capacity updated');
     }
 
-    const found = inMemoryShelters.find(s => s.id === id);
+    const found = inMemoryShelters.find((s) => s.id === id);
     if (!found) {
       return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
     }
 
-    if (currentOccupancy !== undefined) found.capacity.currentOccupancy = currentOccupancy;
-    if (mealsNeededPerDay !== undefined) found.capacity.mealsNeededPerDay = mealsNeededPerDay;
+    if (currentOccupancy !== undefined) found.capacity.currentOccupancy = Number(currentOccupancy);
+    if (maxCapacity !== undefined) found.capacity.maxCapacity = Number(maxCapacity);
+    if (mealsNeededPerDay !== undefined) {
+      found.capacity.mealsNeededPerDay = Number(mealsNeededPerDay);
+      found.currentDemand = Number(mealsNeededPerDay);
+    }
     if (urgencyLevel) found.urgencyLevel = urgencyLevel;
 
-    broadcastEvent(SOCKET_EVENTS.SHELTER_CAPACITY_UPDATED, found);
     return res.success(found, 'Shelter capacity updated (in-memory mode)');
   } catch (err) {
     next(err);

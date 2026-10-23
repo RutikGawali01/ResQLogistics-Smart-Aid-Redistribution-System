@@ -5,6 +5,7 @@ const riderLocationSubSchema = new mongoose.Schema(
   {
     latitude: { type: Number, required: true },
     longitude: { type: Number, required: true },
+    address: String,
     heading: Number,
     speedKmh: Number,
     updatedAt: { type: Date, default: Date.now }
@@ -22,29 +23,43 @@ const riderSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      required: true,
       trim: true
     },
     phone: {
-      type: String,
-      required: true
+      type: String
     },
     vehicleType: {
       type: String,
       enum: VEHICLE_TYPES,
-      required: true
+      default: 'E_BIKE'
     },
-    maxCapacityKg: {
+    capacity: {
       type: Number,
       required: true,
-      min: 1
+      min: [0.1, 'Capacity must be greater than zero']
+    },
+    // maxCapacityKg retained for backwards compatibility
+    maxCapacityKg: {
+      type: Number
+    },
+    availableCapacity: {
+      type: Number,
+      required: true,
+      min: [0, 'Available capacity cannot be negative']
+    },
+    isAvailable: {
+      type: Boolean,
+      default: true
     },
     status: {
       type: String,
       enum: RIDER_STATUS,
-      default: 'OFFLINE'
+      default: 'AVAILABLE'
     },
-    currentLocation: riderLocationSubSchema,
+    currentLocation: {
+      type: riderLocationSubSchema,
+      default: () => ({ latitude: 37.7749, longitude: -122.4194, updatedAt: new Date() })
+    },
     activeAssignmentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Assignment',
@@ -64,7 +79,34 @@ const riderSchema = new mongoose.Schema(
   }
 );
 
-riderSchema.index({ 'currentLocation.latitude': 1, 'currentLocation.longitude': 1 });
+// Pre-save synchronization
+riderSchema.pre('validate', function (next) {
+  // Sync capacity and maxCapacityKg
+  if (!this.capacity && this.maxCapacityKg) this.capacity = this.maxCapacityKg;
+  if (!this.maxCapacityKg && this.capacity) this.maxCapacityKg = this.capacity;
+
+  if (this.availableCapacity === undefined || this.availableCapacity === null) {
+    this.availableCapacity = this.capacity;
+  }
+
+  // Validate availableCapacity <= capacity
+  if (this.availableCapacity > this.capacity) {
+    return next(new Error('availableCapacity cannot exceed total capacity'));
+  }
+
+  // Sync isAvailable with status
+  if (this.isModified('isAvailable') && !this.isModified('status')) {
+    this.status = this.isAvailable ? 'AVAILABLE' : 'OFFLINE';
+  } else if (this.isModified('status') && !this.isModified('isAvailable')) {
+    this.isAvailable = this.status === 'AVAILABLE';
+  }
+
+  next();
+});
+
+// Query indexes
+riderSchema.index({ isAvailable: 1, availableCapacity: -1 });
 riderSchema.index({ status: 1 });
+riderSchema.index({ 'currentLocation.latitude': 1, 'currentLocation.longitude': 1 });
 
 export const Rider = mongoose.models.Rider || mongoose.model('Rider', riderSchema);

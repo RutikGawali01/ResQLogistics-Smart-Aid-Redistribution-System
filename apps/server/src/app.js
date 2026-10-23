@@ -13,6 +13,7 @@ import sheltersRoutes from './routes/shelters.routes.js';
 import ridersRoutes from './routes/riders.routes.js';
 import dispatchRoutes from './routes/dispatch.routes.js';
 import assignmentsRoutes from './routes/assignments.routes.js';
+import eventsRoutes from './routes/events.routes.js';
 
 export function createApp() {
   const app = express();
@@ -34,6 +35,7 @@ export function createApp() {
   app.use(ENDPOINT_PREFIXES.RIDERS, ridersRoutes);
   app.use(ENDPOINT_PREFIXES.DISPATCH, dispatchRoutes);
   app.use(ENDPOINT_PREFIXES.ASSIGNMENTS, assignmentsRoutes);
+  app.use('/api/events', eventsRoutes);
 
   // 404 handler adhering to standard error contract
   app.use((req, res) => {

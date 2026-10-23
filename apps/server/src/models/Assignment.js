@@ -45,23 +45,41 @@ const assignmentSchema = new mongoose.Schema(
       ref: 'Rider',
       default: null
     },
+    allocatedQuantity: {
+      type: Number,
+      required: true,
+      min: [0.1, 'allocatedQuantity must be greater than zero']
+    },
     status: {
       type: String,
       enum: ALL_ASSIGNMENT_STATUSES,
       default: ASSIGNMENT_STATUS.UNASSIGNED,
       required: true
     },
+    deadline: {
+      type: Date,
+      required: true,
+      default: () => new Date(Date.now() + 86400000) // Default 24-hour SLA
+    },
     pickupLocation: {
       type: locationSubSchema,
-      required: true
+      default: () => ({
+        address: 'Pickup Depot',
+        latitude: 37.7749,
+        longitude: -122.4194
+      })
     },
     deliveryLocation: {
       type: locationSubSchema,
-      required: true
+      default: () => ({
+        address: 'Shelter Hub',
+        latitude: 37.7915,
+        longitude: -122.3980
+      })
     },
     timeline: {
       type: timelineSubSchema,
-      default: () => ({})
+      default: () => ({ assignedAt: new Date() })
     },
     notes: String,
     cancellationReason: String
@@ -82,7 +100,6 @@ const assignmentSchema = new mongoose.Schema(
 // Pre-save validation ensuring valid state machine transitions
 assignmentSchema.pre('save', function (next) {
   if (this.isModified('status') && !this.isNew) {
-    // When modified in an existing document
     const previousStatus = this._originalStatus || this._previousStatus;
     if (previousStatus && previousStatus !== this.status) {
       const validation = canTransitionAssignment(previousStatus, this.status);
@@ -99,7 +116,10 @@ assignmentSchema.post('init', function () {
   this._originalStatus = this.status;
 });
 
+// Query indexes
 assignmentSchema.index({ status: 1, riderId: 1 });
 assignmentSchema.index({ donationId: 1, shelterId: 1 });
+assignmentSchema.index({ status: 1, deadline: 1 });
+assignmentSchema.index({ createdAt: -1 });
 
 export const Assignment = mongoose.models.Assignment || mongoose.model('Assignment', assignmentSchema);

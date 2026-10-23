@@ -31,3 +31,7 @@ Thumbs.db
 # Testing
 reports/
 .nyc_output/
+
+# Local Database
+.mongo_data/
+
