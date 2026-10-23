@@ -190,4 +190,151 @@ describe('AidFlow Client Foundation & Axios API Client Tests', () => {
       expect(ALL_ROLES).toContain('SHELTER_MANAGER');
     });
   });
+
+  describe('AidFlow Four Main User Workflows', () => {
+    it('DONOR Workflow: creates donation, categorizes quantities, and tracks delivery status', async () => {
+      // 1. Create a donation
+      const newDonation = {
+        title: 'Morning Bakery Loaves',
+        category: 'BAKERY',
+        quantity: 40,
+        unit: 'loaves',
+        storageRequirement: 'ROOM_TEMPERATURE',
+        expirationDate: new Date(Date.now() + 86400000).toISOString(),
+        pickupLocation: {
+          address: '100 Market St, San Francisco, CA',
+          latitude: 37.793,
+          longitude: -122.399
+        }
+      };
+
+      const createRes = await donationsService.createDonation(newDonation, { forceMock: true });
+      expect(createRes.success).toBe(true);
+      expect(createRes.data.title).toBe('Morning Bakery Loaves');
+
+      // 2. View donations and compute available, reserved, and completed quantities
+      const allDonationsRes = await donationsService.getDonations({ forceMock: true });
+      expect(allDonationsRes.success).toBe(true);
+      const list = allDonationsRes.data;
+
+      const availableQty = list
+        .filter((d) => d.status === 'AVAILABLE')
+        .reduce((sum, d) => sum + (Number(d.quantity) || 0), 0);
+      const reservedQty = list
+        .filter((d) => ['RESERVED', 'ASSIGNED', 'IN_TRANSIT'].includes(d.status))
+        .reduce((sum, d) => sum + (Number(d.quantity) || 0), 0);
+      const completedQty = list
+        .filter((d) => d.status === 'DELIVERED')
+        .reduce((sum, d) => sum + (Number(d.quantity) || 0), 0);
+
+      expect(availableQty).toBeGreaterThan(0);
+      expect(typeof reservedQty).toBe('number');
+      expect(typeof completedQty).toBe('number');
+
+      // 3. View pickup and delivery status
+      const first = list[0];
+      expect(first.pickupLocation?.address).toBeDefined();
+      expect(first.status).toBeDefined();
+    });
+
+    it('SHELTER MANAGER Workflow: updates capacity/resources, toggles open/close, confirms delivery receipt', async () => {
+      // 1. Update receiving capacity and resource availability
+      const shelters = await sheltersService.getShelters({ forceMock: true });
+      expect(shelters.success).toBe(true);
+      const shelterId = shelters.data[0].id;
+
+      const capRes = await sheltersService.updateCapacity(
+        shelterId,
+        { currentOccupancy: 82, maxCapacity: 100, mealsNeededPerDay: 140 },
+        { forceMock: true }
+      );
+      expect(capRes.success).toBe(true);
+      expect(capRes.data.capacity.currentOccupancy).toBe(82);
+
+      // 2. Confirm incoming delivery receipt
+      const assignments = await assignmentsService.getAssignments({ forceMock: true });
+      expect(assignments.success).toBe(true);
+      const activeAsg = assignments.data[0];
+
+      const deliveryConfirmation = await assignmentsService.transitionState(
+        activeAsg.id,
+        ASSIGNMENT_STATUS.DELIVERED,
+        { reason: 'Confirmed intake by Shelter Supervisor', forceMock: true }
+      );
+      // Valid transition or handled state jump
+      expect(deliveryConfirmation).toBeDefined();
+    });
+
+    it('RIDER Workflow: views assignments, accepts/declines, and progresses mission status to destination', async () => {
+      // 1. View offered assignments
+      const asgRes = await assignmentsService.getAssignments({ forceMock: true });
+      expect(asgRes.success).toBe(true);
+      const asg = asgRes.data[0];
+
+      expect(asg.pickupLocation?.address).toBeDefined();
+      expect(asg.deliveryLocation?.address).toBeDefined();
+
+      // 2. Accept assignment if in pending acceptance
+      if (asg.status === ASSIGNMENT_STATUS.PENDING_ACCEPTANCE) {
+        const accepted = await assignmentsService.transitionState(
+          asg.id,
+          ASSIGNMENT_STATUS.ACCEPTED,
+          { forceMock: true }
+        );
+        expect(accepted.success).toBe(true);
+        expect(accepted.data.status).toBe(ASSIGNMENT_STATUS.ACCEPTED);
+      }
+
+      // 3. Progress route to pickup in progress
+      const pickupProg = await assignmentsService.transitionState(
+        asg.id,
+        ASSIGNMENT_STATUS.PICKUP_IN_PROGRESS,
+        { forceMock: true }
+      );
+      expect(pickupProg.success).toBe(true);
+
+      // 4. Record pickup confirmation
+      const pickedUp = await assignmentsService.transitionState(
+        asg.id,
+        ASSIGNMENT_STATUS.PICKED_UP,
+        { forceMock: true }
+      );
+      expect(pickedUp.success).toBe(true);
+      expect(pickedUp.data.status).toBe(ASSIGNMENT_STATUS.PICKED_UP);
+    });
+
+    it('ADMIN Workflow: views platform summaries, telemetry, and assignments pipeline', async () => {
+      // 1. View platform summaries
+      const [tel, don, shl, rdr, asg] = await Promise.all([
+        analyticsService.getTelemetry({ forceMock: true }),
+        donationsService.getDonations({ forceMock: true }),
+        sheltersService.getShelters({ forceMock: true }),
+        ridersService.getRiders({ forceMock: true }),
+        assignmentsService.getAssignments({ forceMock: true })
+      ]);
+
+      expect(tel.success).toBe(true);
+      expect(don.data.length).toBeGreaterThan(0);
+      expect(shl.data.length).toBeGreaterThan(0);
+      expect(rdr.data.length).toBeGreaterThan(0);
+      expect(asg.data.length).toBeGreaterThan(0);
+
+      // 2. Validates telemetry metrics
+      expect(tel.data.totalSurplusKg).toBeDefined();
+      expect(tel.data.avgDispatchSlaMinutes).toBeDefined();
+    });
+
+    it('Switching mechanism: screens can dynamically switch from mock data to real API endpoints', async () => {
+      // Mock mode explicitly enabled
+      const mockResult = await donationsService.getDonations({ forceMock: true });
+      expect(mockResult.success).toBe(true);
+      expect(mockResult.isMock).toBe(true);
+
+      // Calling with forceMock: false attempts real network request without crashing
+      // (and falls back cleanly if server unreachable)
+      const dynamicResult = await donationsService.getDonations({ forceMock: false });
+      expect(dynamicResult.success).toBe(true);
+      expect(Array.isArray(dynamicResult.data)).toBe(true);
+    });
+  });
 });

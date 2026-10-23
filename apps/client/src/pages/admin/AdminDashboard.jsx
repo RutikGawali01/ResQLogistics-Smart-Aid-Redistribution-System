@@ -6,7 +6,7 @@ import { ridersService } from '../../services/ridersService.js';
 import { assignmentsService } from '../../services/assignmentsService.js';
 import { analyticsService } from '../../services/analyticsService.js';
 import { MetricCard } from '../../components/ui/Card.jsx';
-import { StatusBadge, UrgencyBadge, CategoryBadge } from '../../components/ui/Badge.jsx';
+import { StatusBadge, UrgencyBadge, CategoryBadge, Badge } from '../../components/ui/Badge.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFilter } from '../../components/ui/Table.jsx';
 import { Button } from '../../components/ui/FormElements.jsx';
 import { LoadingState, EmptyState, ErrorState } from '../../components/ui/States.jsx';
@@ -23,7 +23,13 @@ import {
   ArrowRight,
   TrendingUp,
   MapPin,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle,
+  Clock,
+  CheckCircle2,
+  BellRing,
+  History,
+  Radio
 } from 'lucide-react';
 
 export function AdminDashboard() {
@@ -37,6 +43,73 @@ export function AdminDashboard() {
   const [riders, setRiders] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [filterQuery, setFilterQuery] = useState('');
+
+  // Unresolved Operational Alerts State
+  const [alerts, setAlerts] = useState([
+    {
+      id: 'alt_01',
+      title: 'High Urgency Shelter Surge: Downtown Hope Refuge',
+      description: 'Shelter reached 88% bed occupancy and reported understocked meal pantry (150 meals needed).',
+      severity: 'CRITICAL',
+      source: 'SHELTER_CAPACITY',
+      timestamp: '12 mins ago',
+      resolved: false
+    },
+    {
+      id: 'alt_02',
+      title: 'Perishable Aid Expiration Warning: Organic Produce Crate',
+      description: 'Donation #don_mock_02 is perishable and expires in under 36 hours. Prioritizing expedited routing.',
+      severity: 'WARNING',
+      source: 'DONATION_DISPATCH',
+      timestamp: '28 mins ago',
+      resolved: false
+    },
+    {
+      id: 'alt_03',
+      title: 'Unassigned Mission Pending Acceptance: Mission #asg_seed_01',
+      description: 'Courier dispatch offer awaiting acceptance for over 15 minutes.',
+      severity: 'WARNING',
+      source: 'COURIER_FLEET',
+      timestamp: '45 mins ago',
+      resolved: false
+    }
+  ]);
+
+  // Recent Platform Events Stream
+  const [recentEvents] = useState([
+    {
+      id: 'evt_01',
+      type: 'ASSIGNMENT_STATE_CHANGED',
+      entity: 'Assignment #asg_seed_01',
+      description: 'Courier Carlos Ruiz marked shipment as ACCEPTED',
+      actor: 'Carlos Ruiz (RIDER)',
+      timestamp: 'Just now'
+    },
+    {
+      id: 'evt_02',
+      type: 'DONATION_CREATED',
+      entity: 'Donation #don_mock_01',
+      description: 'Sarah Jenkins registered 45 loaves of artisan bread',
+      actor: 'Sarah Jenkins (DONOR)',
+      timestamp: '14 mins ago'
+    },
+    {
+      id: 'evt_03',
+      type: 'SHELTER_CAPACITY_UPDATED',
+      entity: 'Downtown Hope Refuge',
+      description: 'Bed occupancy updated to 88/100, Urgency level HIGH',
+      actor: 'Elena Rostova (SHELTER_MANAGER)',
+      timestamp: '32 mins ago'
+    },
+    {
+      id: 'evt_04',
+      type: 'DELIVERY_COMPLETED',
+      entity: 'Assignment #asg_seed_02',
+      description: 'Intake dock receipt confirmed into relief kitchen pantry',
+      actor: 'Elena Rostova (SHELTER_MANAGER)',
+      timestamp: '1 hour ago'
+    }
+  ]);
 
   const loadData = async () => {
     setLoading(true);
@@ -76,6 +149,12 @@ export function AdminDashboard() {
     return res;
   };
 
+  const handleAcknowledgeAlert = (alertId) => {
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === alertId ? { ...a, resolved: true } : a))
+    );
+  };
+
   if (loading) {
     return <LoadingState message="Fetching system telemetry & dispatch pipeline..." />;
   }
@@ -83,6 +162,8 @@ export function AdminDashboard() {
   if (error) {
     return <ErrorState message={error} onRetry={loadData} />;
   }
+
+  const unresolvedAlerts = alerts.filter((a) => !a.resolved);
 
   const filteredAssignments = assignments.filter((a) => {
     if (!filterQuery) return true;
@@ -121,38 +202,143 @@ export function AdminDashboard() {
         </Button>
       </div>
 
-      {/* KPI Metrics */}
+      {/* KPI Summaries Row */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          title="Surplus Food Rescued"
+          title="Surplus Rescued"
           value={`${(telemetry?.totalSurplusKg || 12450).toLocaleString()} kg`}
-          subtext="+14% this week"
+          subtext={`${donations.length} total aid batches`}
           trend="+14%"
           color="emerald"
           icon={Package}
         />
         <MetricCard
-          title="Shelters Supported"
+          title="Relief Shelters"
           value={shelters.length.toString()}
-          subtext="4 high urgency"
+          subtext="Active emergency hubs"
           color="amber"
           icon={Building2}
         />
         <MetricCard
-          title="Couriers On Dispatch"
-          value={riders.filter((r) => r.status === 'ON_DISPATCH').length.toString()}
-          subtext={`${riders.filter((r) => r.status === 'AVAILABLE').length} available`}
+          title="Courier Fleet"
+          value={riders.length.toString()}
+          subtext={`${riders.filter((r) => r.status === 'AVAILABLE').length} ready for dispatch`}
           color="blue"
           icon={Bike}
         />
         <MetricCard
-          title="Avg Dispatch SLA"
-          value={`${telemetry?.avgDispatchSlaMinutes || 19.4} min`}
-          subtext="Target < 25 min"
-          trend="-2.1 min"
+          title="Active Missions"
+          value={assignments.filter((a) => a.status !== 'DELIVERED').length.toString()}
+          subtext={`${assignments.filter((a) => a.status === 'DELIVERED').length} delivered`}
           color="purple"
           icon={TrendingUp}
         />
+      </section>
+
+      {/* Unresolved Alerts & Recent Events Grid */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Unresolved Operational Alerts */}
+        <div className="glass-card rounded-2xl border border-slate-800 p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-rose-400" />
+                Unresolved Operational Alerts
+              </h3>
+              <p className="text-xs text-slate-400">
+                Actionable system alerts requiring immediate operational intervention
+              </p>
+            </div>
+            <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+              {unresolvedAlerts.length} Active
+            </span>
+          </div>
+
+          {unresolvedAlerts.length === 0 ? (
+            <div className="p-6 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+              <span>All platform operational alerts resolved. Redistribution pipeline normal.</span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {unresolvedAlerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-700 transition-colors"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={alert.severity === 'CRITICAL' ? 'rose' : 'amber'}
+                        size="xs"
+                      >
+                        {alert.severity}
+                      </Badge>
+                      <span className="font-semibold text-xs text-slate-100">{alert.title}</span>
+                    </div>
+                    <p className="text-xs text-slate-400 max-w-md">{alert.description}</p>
+                    <span className="text-[10px] text-slate-500 flex items-center gap-1 font-mono">
+                      <Clock className="w-3 h-3" />
+                      {alert.timestamp} • Source: {alert.source}
+                    </span>
+                  </div>
+
+                  <Button
+                    size="xs"
+                    variant="secondary"
+                    icon={CheckCircle2}
+                    onClick={() => handleAcknowledgeAlert(alert.id)}
+                    className="self-start sm:self-center"
+                  >
+                    Acknowledge
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Recent Events Live Feed */}
+        <div className="glass-card rounded-2xl border border-slate-800 p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                <History className="w-4 h-4 text-sky-400" />
+                Recent Platform Events & Audit Stream
+              </h3>
+              <p className="text-xs text-slate-400">
+                Immutable event stream of donor registrations, dispatches, and shelter intakes
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-emerald-400">
+              <Radio className="w-3.5 h-3.5 animate-pulse" />
+              <span>Live</span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {recentEvents.map((evt) => (
+              <div
+                key={evt.id}
+                className="p-3 rounded-xl bg-slate-950/50 border border-slate-850 flex items-start gap-3"
+              >
+                <div className="w-2 h-2 rounded-full bg-sky-400 mt-1.5 flex-shrink-0" />
+                <div className="space-y-0.5 flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-slate-200 truncate">
+                      {evt.entity}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono flex-shrink-0">
+                      {evt.timestamp}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">{evt.description}</p>
+                  <span className="text-[11px] text-slate-500 font-mono">By: {evt.actor}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* Real-time Map & State Machine Visualizer */}
