@@ -8,7 +8,7 @@
     "start": "node src/index.js",
     "seed": "node src/seed.js",
     "seed:users": "node src/seeds/seedUsers.js",
-    "test": "vitest run"
+    "test": "vitest run --fileParallelism=false"
   },
   "dependencies": {
     "@aidflow/shared": "*",
