@@ -1,0 +1,19 @@
+{
+  "name": "@aidflow/worker",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aidflow/shared": "*",
+    "dotenv": "^16.4.7",
+    "mongoose": "^8.10.1"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.7"
+  }
+}
