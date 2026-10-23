@@ -43,13 +43,45 @@ export const DEMO_USERS = [
   }
 ];
 
+export const NAMED_DEMO_USERS = [
+  {
+    id: 'usr_donor_named',
+    name: 'Sarah Jenkins',
+    email: 'sarah@freshmarket.com',
+    password: 'Password123!',
+    role: ROLES.DONOR,
+    phone: '+1 (555) 482-1920',
+    organization: 'Fresh Market Grocers'
+  },
+  {
+    id: 'usr_rider_named',
+    name: 'Carlos Ruiz',
+    email: 'carlos.rider@aidflow.org',
+    password: 'Password123!',
+    role: ROLES.RIDER,
+    phone: '+1 (555) 773-9021',
+    organization: 'Green Wheels Courier Collective'
+  },
+  {
+    id: 'usr_shelter_named',
+    name: 'Elena Rostova',
+    email: 'elena@downtownhope.org',
+    password: 'Password123!',
+    role: ROLES.SHELTER_MANAGER,
+    phone: '+1 (555) 301-4492',
+    organization: 'Downtown Hope Refuge'
+  }
+];
+
+export const ALL_DEMO_USERS = [...DEMO_USERS, ...NAMED_DEMO_USERS];
+
 /**
  * Generates an in-memory representation of demo accounts with bcrypt-hashed passwords.
  * Useful for decoupled/mock mode when MongoDB is offline.
  */
 export function getPrehashedDemoUsers() {
   const saltRounds = 10;
-  return DEMO_USERS.map(demoUser => {
+  return ALL_DEMO_USERS.map(demoUser => {
     const passwordHash = bcrypt.hashSync(demoUser.password, saltRounds);
     return {
       id: demoUser.id,
@@ -78,7 +110,7 @@ export async function seedUsers({ disconnectAfter = false } = {}) {
   const seeded = [];
   const saltRounds = 10;
 
-  for (const demo of DEMO_USERS) {
+  for (const demo of ALL_DEMO_USERS) {
     const passwordHash = await bcrypt.hash(demo.password, saltRounds);
     const userDoc = await User.findOneAndUpdate(
       { email: demo.email.toLowerCase() },

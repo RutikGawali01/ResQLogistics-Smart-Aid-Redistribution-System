@@ -231,6 +231,7 @@ describe('AidFlow Authentication & Authorization Suite', () => {
     let adminToken;
 
     beforeAll(async () => {
+      loginRateLimiter.reset();
       // Obtain tokens for all 4 roles
       const login = async (email, password) => {
         const res = await request(app).post('/api/auth/login').send({ email, password });

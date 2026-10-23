@@ -87,8 +87,8 @@ export function AdminDashboard() {
           resolved: a.metadata?.resolved ?? false
         }));
         setAlerts(formattedAlerts);
-      } else {
-        // Default telemetry alerts
+      } else if (forceMock) {
+        // Default telemetry alerts ONLY in mock mode
         setAlerts([
           {
             id: 'alt_01',
@@ -109,6 +109,8 @@ export function AdminDashboard() {
             resolved: false
           }
         ]);
+      } else {
+        setAlerts([]);
       }
 
       if (evtRes.data && evtRes.data.length > 0) {
@@ -121,7 +123,7 @@ export function AdminDashboard() {
           timestamp: new Date(e.createdAt || e.timestamp || Date.now()).toLocaleTimeString()
         }));
         setRecentEvents(formattedEvents);
-      } else {
+      } else if (forceMock) {
         setRecentEvents([
           {
             id: 'evt_01',
@@ -140,6 +142,8 @@ export function AdminDashboard() {
             timestamp: '14 mins ago'
           }
         ]);
+      } else {
+        setRecentEvents([]);
       }
     } catch (err) {
       setError(err.message || 'Failed to fetch operational telemetry');

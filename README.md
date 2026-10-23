@@ -1,5 +1,9 @@
 # AidFlow | Real-Time Surplus Food & Essential-Aid Coordination Platform
 
+> 🏆 **Live Hackathon Judging Guide:** See [HACKATHON_DEMO.md](./HACKATHON_DEMO.md) for full setup instructions, demo credentials, architecture diagrams, the 10-scenario results checklist, and step-by-step judge walkthrough scripts!
+>
+> 🚀 **Run the 10-Scenario Automated Verification Suite:** `npm run test:scenarios`
+
 AidFlow is a real-time humanitarian logistics platform connecting food donors (restaurants, bakeries, grocers) with emergency relief shelters, soup kitchens, and volunteer courier riders.
 
 ---
