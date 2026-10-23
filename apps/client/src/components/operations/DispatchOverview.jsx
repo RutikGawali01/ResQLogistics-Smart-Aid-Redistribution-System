@@ -380,9 +380,9 @@ export function DispatchOverview({
                         Next Lifecycle Transition:
                       </span>
                       <div className="flex items-center gap-1.5">
-                        {asg.status === ASSIGNMENT_STATUS.OFFERED && (
+                        {(asg.status === ASSIGNMENT_STATUS.PENDING_ACCEPTANCE || asg.status === ASSIGNMENT_STATUS.OFFERED) && (
                           <button
-                            onClick={() => onTransitionState(asg.id, ASSIGNMENT_STATUS.ACCEPTED)}
+                            onClick={() => onTransitionState(asg.id || asg._id, ASSIGNMENT_STATUS.ACCEPTED)}
                             className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 transition-colors"
                           >
                             Accept Mission
@@ -390,25 +390,31 @@ export function DispatchOverview({
                         )}
                         {asg.status === ASSIGNMENT_STATUS.ACCEPTED && (
                           <button
-                            onClick={() => onTransitionState(asg.id, ASSIGNMENT_STATUS.EN_ROUTE_PICKUP)}
+                            onClick={() => onTransitionState(asg.id || asg._id, ASSIGNMENT_STATUS.PICKUP_IN_PROGRESS)}
                             className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/30 transition-colors"
                           >
                             Depart for Pickup
                           </button>
                         )}
-                        {asg.status === ASSIGNMENT_STATUS.EN_ROUTE_PICKUP && (
+                        {asg.status === ASSIGNMENT_STATUS.PICKUP_IN_PROGRESS && (
                           <button
-                            onClick={() => onTransitionState(asg.id, ASSIGNMENT_STATUS.PICKED_UP)}
+                            onClick={() => onTransitionState(asg.id || asg._id, ASSIGNMENT_STATUS.PICKED_UP)}
                             className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/30 transition-colors"
                           >
                             Confirm Pickup
                           </button>
                         )}
-                        {(asg.status === ASSIGNMENT_STATUS.PICKED_UP ||
-                          asg.status === ASSIGNMENT_STATUS.EN_ROUTE_DROPOFF ||
-                          asg.status === ASSIGNMENT_STATUS.DELIVERY_IN_PROGRESS) && (
+                        {asg.status === ASSIGNMENT_STATUS.PICKED_UP && (
                           <button
-                            onClick={() => onTransitionState(asg.id, ASSIGNMENT_STATUS.DELIVERED)}
+                            onClick={() => onTransitionState(asg.id || asg._id, ASSIGNMENT_STATUS.DELIVERY_IN_PROGRESS)}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/30 transition-colors"
+                          >
+                            Depart for Delivery
+                          </button>
+                        )}
+                        {asg.status === ASSIGNMENT_STATUS.DELIVERY_IN_PROGRESS && (
+                          <button
+                            onClick={() => onTransitionState(asg.id || asg._id, ASSIGNMENT_STATUS.DELIVERED)}
                             className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors"
                           >
                             Confirm Intake at Shelter

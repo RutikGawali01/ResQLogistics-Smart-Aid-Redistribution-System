@@ -317,7 +317,9 @@ router.patch(
           assignment = await Assignment.findById(id);
         }
         if (!assignment && (id === 'asg_mock_01' || id === 'asg_seed_01' || id.startsWith('asg_'))) {
-          assignment = await Assignment.findOne();
+          assignment =
+            (await Assignment.findOne({ status: { $nin: ['DELIVERED', 'CANCELLED', 'FAILED'] } })) ||
+            (await Assignment.findOne());
         }
         if (!assignment && req.user.role === ROLES.SHELTER_MANAGER) {
           const myShelter = await Shelter.findOne({ managerId: req.user.id });

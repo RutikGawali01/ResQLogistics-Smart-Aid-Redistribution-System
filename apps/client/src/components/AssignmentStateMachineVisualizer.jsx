@@ -15,7 +15,7 @@ import {
   Clock
 } from 'lucide-react';
 
-export function AssignmentStateMachineVisualizer({ onTransition, isLiveBackend }) {
+export function AssignmentStateMachineVisualizer({ assignments = [], onTransition, isLiveBackend }) {
   const [currentStatus, setCurrentStatus] = useState(ASSIGNMENT_STATUS.UNASSIGNED);
   const [transitionHistory, setTransitionHistory] = useState([
     {
@@ -44,10 +44,13 @@ export function AssignmentStateMachineVisualizer({ onTransition, isLiveBackend }
     }
 
     if (onTransition) {
-      try {
-        await onTransition('asg_seed_01', targetStatus);
-      } catch (err) {
-        console.warn('Transition hook error:', err);
+      const match = assignments.find((a) => a.status === currentStatus);
+      if (match) {
+        try {
+          await onTransition(match.id || match._id, targetStatus);
+        } catch (err) {
+          console.warn('Transition hook error:', err);
+        }
       }
     }
 

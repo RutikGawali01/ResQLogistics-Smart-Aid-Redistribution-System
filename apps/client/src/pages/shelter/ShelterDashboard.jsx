@@ -248,21 +248,57 @@ export function ShelterDashboard() {
     setIsPublishingDemand(false);
   };
 
-  // Confirm Received Deliveries
-  const handleConfirmReceipt = async (assignmentId) => {
+  // Confirm Received Deliveries with sequential transition validation
+  const handleConfirmReceipt = async (target) => {
     setActionNotice(null);
-    const res = await assignmentsService.transitionState(
-      assignmentId,
-      ASSIGNMENT_STATUS.DELIVERED,
-      { reason: 'Confirmed intake by Shelter Supervisor', forceMock }
-    );
-    if (res.success) {
+    setError(null);
+    const asg = typeof target === 'object' ? target : incomingDeliveries.find((a) => (a.id || a._id) === target);
+    const assignmentId = asg ? (asg.id || asg._id) : target;
+    if (!assignmentId) return;
+
+    const currentStatus = asg?.status;
+    const fullChain = [
+      ASSIGNMENT_STATUS.UNASSIGNED,
+      ASSIGNMENT_STATUS.PENDING_ACCEPTANCE,
+      ASSIGNMENT_STATUS.ACCEPTED,
+      ASSIGNMENT_STATUS.PICKUP_IN_PROGRESS,
+      ASSIGNMENT_STATUS.PICKED_UP,
+      ASSIGNMENT_STATUS.DELIVERY_IN_PROGRESS,
+      ASSIGNMENT_STATUS.DELIVERED
+    ];
+
+    const currentIndex = currentStatus ? fullChain.indexOf(currentStatus) : -1;
+    if (currentIndex >= 0 && currentIndex < fullChain.length - 1) {
+      // Step sequentially to DELIVERED to strictly conform to state machine
+      for (let i = currentIndex + 1; i < fullChain.length; i++) {
+        const nextState = fullChain[i];
+        const res = await assignmentsService.transitionState(assignmentId, nextState, {
+          reason: 'Intake processed by Shelter Supervisor',
+          forceMock
+        });
+        if (!res.success) {
+          setError(res.error || `Failed transition to ${nextState}`);
+          loadData();
+          return;
+        }
+      }
       setIncomingDeliveries((prev) => prev.filter((a) => (a.id || a._id) !== assignmentId));
-      setActionNotice(`Shipment #${assignmentId} confirmed received into kitchen pantry.`);
+      setActionNotice(`Shipment confirmed received into kitchen pantry.`);
       loadData();
     } else {
-      setError(res.error || 'Failed to confirm intake on server');
-      loadData();
+      const res = await assignmentsService.transitionState(
+        assignmentId,
+        ASSIGNMENT_STATUS.DELIVERED,
+        { reason: 'Confirmed intake by Shelter Supervisor', forceMock }
+      );
+      if (res.success) {
+        setIncomingDeliveries((prev) => prev.filter((a) => (a.id || a._id) !== assignmentId));
+        setActionNotice(`Shipment confirmed received into kitchen pantry.`);
+        loadData();
+      } else {
+        setError(res.error || 'Failed to confirm intake on server');
+        loadData();
+      }
     }
   };
 
@@ -499,15 +535,40 @@ export function ShelterDashboard() {
                     </p>
                   </div>
 
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => handleConfirmReceipt(asg.id)}
-                    icon={CheckCircle2}
-                    className="self-start sm:self-center bg-emerald-600 hover:bg-emerald-500"
-                  >
-                    Confirm Delivery Receipt
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {asg.status === ASSIGNMENT_STATUS.DELIVERY_IN_PROGRESS ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleConfirmReceipt(asg)}
+                        icon={CheckCircle2}
+                        className="self-start sm:self-center bg-emerald-600 hover:bg-emerald-500 font-semibold"
+                      >
+                        Confirm Delivery Intake
+                      </Button>
+                    ) : asg.status === ASSIGNMENT_STATUS.PICKED_UP ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleConfirmReceipt(asg)}
+                        icon={CheckCircle2}
+                        className="self-start sm:self-center bg-indigo-600 hover:bg-indigo-500 text-xs"
+                      >
+                        Receive Cargo (In Transit)
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleConfirmReceipt(asg)}
+                        icon={CheckCircle2}
+                        className="self-start sm:self-center text-xs text-amber-300 border-amber-500/30 hover:bg-amber-500/10"
+                        title="Courier is preparing or en route to donor. Click to fast-track intake."
+                      >
+                        Fast-Track Intake
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

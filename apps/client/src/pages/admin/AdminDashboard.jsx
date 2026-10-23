@@ -206,7 +206,7 @@ export function AdminDashboard() {
       const res = await assignmentsService.transitionState(assignmentId, targetStatus, { forceMock });
       if (res.success && res.data) {
         setAssignments((prev) =>
-          prev.map((a) => (a.id === assignmentId ? res.data : a))
+          prev.map((a) => ((a.id || a._id) === assignmentId ? { ...a, ...res.data } : a))
         );
         setActionSuccess(`Mission #${assignmentId} transitioned to ${targetStatus}`);
         return res;
@@ -540,7 +540,7 @@ export function AdminDashboard() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => handleStateTransition(asg.id, ASSIGNMENT_STATUS.ACCEPTED)}
+                        onClick={() => handleStateTransition(asg.id || asg._id, ASSIGNMENT_STATUS.ACCEPTED)}
                       >
                         Accept
                       </Button>
@@ -549,7 +549,7 @@ export function AdminDashboard() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => handleStateTransition(asg.id, ASSIGNMENT_STATUS.PICKUP_IN_PROGRESS)}
+                        onClick={() => handleStateTransition(asg.id || asg._id, ASSIGNMENT_STATUS.PICKUP_IN_PROGRESS)}
                       >
                         Start Route
                       </Button>
@@ -558,7 +558,7 @@ export function AdminDashboard() {
                       <Button
                         size="sm"
                         variant="primary"
-                        onClick={() => handleStateTransition(asg.id, ASSIGNMENT_STATUS.PICKED_UP)}
+                        onClick={() => handleStateTransition(asg.id || asg._id, ASSIGNMENT_STATUS.PICKED_UP)}
                       >
                         Pickup
                       </Button>
@@ -567,7 +567,7 @@ export function AdminDashboard() {
                       <Button
                         size="sm"
                         variant="primary"
-                        onClick={() => handleStateTransition(asg.id, ASSIGNMENT_STATUS.DELIVERY_IN_PROGRESS)}
+                        onClick={() => handleStateTransition(asg.id || asg._id, ASSIGNMENT_STATUS.DELIVERY_IN_PROGRESS)}
                       >
                         Deliver
                       </Button>
@@ -576,7 +576,7 @@ export function AdminDashboard() {
                       <Button
                         size="sm"
                         variant="primary"
-                        onClick={() => handleStateTransition(asg.id, ASSIGNMENT_STATUS.DELIVERED)}
+                        onClick={() => handleStateTransition(asg.id || asg._id, ASSIGNMENT_STATUS.DELIVERED)}
                       >
                         Complete
                       </Button>
