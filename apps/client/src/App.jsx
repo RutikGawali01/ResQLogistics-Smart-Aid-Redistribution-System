@@ -17,6 +17,7 @@ import { RiderDashboard } from './pages/rider/RiderDashboard.jsx';
 import { ShelterDashboard } from './pages/shelter/ShelterDashboard.jsx';
 import { Dashboard as OverviewDashboard } from './pages/Dashboard.jsx';
 import { LandingPage } from './pages/LandingPage.jsx';
+import { NotFoundPage } from './pages/NotFoundPage.jsx';
 import { ROLES } from '@aidflow/shared';
 
 function RootRedirect() {
