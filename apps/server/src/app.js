@@ -14,6 +14,7 @@ import ridersRoutes from './routes/riders.routes.js';
 import dispatchRoutes from './routes/dispatch.routes.js';
 import assignmentsRoutes from './routes/assignments.routes.js';
 import eventsRoutes from './routes/events.routes.js';
+import analyticsRoutes from './routes/analytics.routes.js';
 
 export function createApp() {
   const app = express();
@@ -36,6 +37,7 @@ export function createApp() {
   app.use(ENDPOINT_PREFIXES.DISPATCH, dispatchRoutes);
   app.use(ENDPOINT_PREFIXES.ASSIGNMENTS, assignmentsRoutes);
   app.use('/api/events', eventsRoutes);
+  app.use(ENDPOINT_PREFIXES.ANALYTICS || '/api/analytics', analyticsRoutes);
 
   // 404 handler adhering to standard error contract
   app.use((req, res) => {

@@ -8,6 +8,7 @@ export const ENDPOINT_PREFIXES = {
   RIDERS: '/api/riders',
   DISPATCH: '/api/dispatch',
   ASSIGNMENTS: '/api/assignments',
+  ANALYTICS: '/api/analytics',
   HEALTH: '/api/health'
 };
 

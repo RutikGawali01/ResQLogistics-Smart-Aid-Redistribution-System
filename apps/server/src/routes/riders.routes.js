@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import {
   riderSchema,
   riderLocationSchema,
@@ -84,22 +85,24 @@ router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    let rider = null;
     if (isDatabaseConnected()) {
-      const rider = await Rider.findOne({
-        $or: [{ _id: mongoose.isValidObjectId(id) ? id : null }, { userId: mongoose.isValidObjectId(id) ? id : null }]
+      rider = await Rider.findOne({
+        $or: [
+          { _id: mongoose.isValidObjectId(id) ? id : null },
+          { userId: mongoose.isValidObjectId(id) ? id : null }
+        ]
       }).populate('userId', 'name email phone');
-
-      if (!rider) {
-        return res.fail(ERROR_CODES.NOT_FOUND, `Rider '${id}' not found`, null, 404);
-      }
-      return res.success(rider, 'Rider found');
     }
 
-    const found = inMemoryRiders.find((r) => r.id === id || r.userId === id);
-    if (!found) {
+    if (!rider) {
+      rider = inMemoryRiders.find((r) => r.id === id || r.userId === id);
+    }
+
+    if (!rider) {
       return res.fail(ERROR_CODES.NOT_FOUND, `Rider '${id}' not found`, null, 404);
     }
-    return res.success(found, 'Rider found (in-memory mode)');
+    return res.success(rider, 'Rider found');
   } catch (err) {
     next(err);
   }
