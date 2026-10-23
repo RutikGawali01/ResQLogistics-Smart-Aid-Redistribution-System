@@ -25,7 +25,7 @@ export function LoginPage() {
 
   const handleQuickFill = (acc) => {
     setEmail(acc.email);
-    setPassword('Pass123!Secure');
+    setPassword(acc.role === ROLES.ADMIN ? 'AidFlowAdmin!2026' : 'Password123!');
     setSelectedRole(acc.role);
     setAuthError(null);
   };

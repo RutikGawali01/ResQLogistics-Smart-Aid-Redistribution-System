@@ -11,10 +11,18 @@ export function AuthProvider({ children }) {
     const existing = authService.getCurrentUser();
     if (existing) return existing;
     // Default to mock admin so first-time load immediately works out-of-the-box
-    return { ...MOCK_USERS.ADMIN, isMock: true };
+    const defaultUser = { ...MOCK_USERS.ADMIN, isMock: true };
+    try {
+      localStorage.setItem('aidflow_user', JSON.stringify(defaultUser));
+      localStorage.setItem('aidflow_token', 'mock_jwt_token_ADMIN_default');
+      localStorage.setItem('aidflow_is_mock_auth', 'true');
+    } catch {
+      // localStorage may fail in restricted sandboxes
+    }
+    return defaultUser;
   });
 
-  const [token, setToken] = useState(() => authService.getToken());
+  const [token, setToken] = useState(() => authService.getToken() || 'mock_jwt_token_ADMIN_default');
   const [isMockAuth, setIsMockAuth] = useState(() => {
     const existing = authService.getCurrentUser();
     return existing ? authService.isMockAuth() : true;
@@ -35,8 +43,11 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const handleUnauthorized = () => {
-      logout();
-      setAuthError('Session expired. Please sign in again.');
+      const isMock = localStorage.getItem('aidflow_is_mock_auth') === 'true';
+      if (!isMock) {
+        logout();
+        setAuthError('Session expired. Please sign in again.');
+      }
     };
 
     window.addEventListener('aidflow:unauthorized', handleUnauthorized);
