@@ -251,8 +251,8 @@ export const assignmentSchema = z.object({
 
 export const assignmentTransitionSchema = z.object({
   targetStatus: z.enum(ALL_ASSIGNMENT_STATUSES),
-  reason: z.string().optional(),
-  coordinates: coordinatesSchema.optional()
+  reason: z.string().optional().nullable(),
+  coordinates: coordinatesSchema.optional().nullable()
 });
 
 /**
