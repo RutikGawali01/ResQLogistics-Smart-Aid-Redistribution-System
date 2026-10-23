@@ -267,12 +267,17 @@ export function AdminDashboard() {
   const filteredAssignments = assignments.filter((a) => {
     if (!filterQuery) return true;
     const q = filterQuery.toLowerCase();
+    const id = (a.id || a._id || '').toString().toLowerCase();
+    const donation = (a.donationTitle || (typeof a.donationId === 'object' ? a.donationId?.title : a.donationId) || '').toLowerCase();
+    const shelter = (a.shelterName || (typeof a.shelterId === 'object' ? a.shelterId?.name : a.shelterId) || '').toLowerCase();
+    const rider = (a.riderName || (typeof a.riderId === 'object' ? a.riderId?.name : a.riderId) || '').toLowerCase();
+    const status = (a.status || '').toLowerCase();
     return (
-      a.id.toLowerCase().includes(q) ||
-      (a.donationTitle && a.donationTitle.toLowerCase().includes(q)) ||
-      (a.shelterName && a.shelterName.toLowerCase().includes(q)) ||
-      (a.riderName && a.riderName.toLowerCase().includes(q)) ||
-      a.status.toLowerCase().includes(q)
+      id.includes(q) ||
+      donation.includes(q) ||
+      shelter.includes(q) ||
+      rider.includes(q) ||
+      status.includes(q)
     );
   });
 
@@ -542,14 +547,16 @@ export function AdminDashboard() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium text-slate-200">{asg.shelterName || asg.shelterId}</div>
+                    <div className="font-medium text-slate-200">
+                      {asg.shelterName || (typeof asg.shelterId === 'object' ? asg.shelterId?.name : asg.shelterId) || 'Relief Shelter'}
+                    </div>
                     <div className="text-[11px] text-slate-400 truncate max-w-xs">
                       {asg.deliveryLocation?.address}
                     </div>
                   </TableCell>
                   <TableCell>
                     <span className="text-slate-300 font-medium">
-                      {asg.riderName || asg.riderId || 'Unassigned'}
+                      {asg.riderName || (typeof asg.riderId === 'object' ? asg.riderId?.name : asg.riderId) || 'Unassigned'}
                     </span>
                   </TableCell>
                   <TableCell>

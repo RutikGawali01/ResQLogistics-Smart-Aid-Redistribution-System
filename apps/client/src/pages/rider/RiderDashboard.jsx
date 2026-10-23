@@ -257,11 +257,11 @@ export function RiderDashboard() {
                 <span>Intake Dock</span>
               </div>
               <p className="text-sm font-medium text-slate-100">
-                {activeAssignment.shelterName || 'Downtown Hope Refuge'}
+                {activeAssignment.shelterName || (typeof activeAssignment.shelterId === 'object' ? activeAssignment.shelterId?.name : activeAssignment.shelterId) || 'Downtown Hope Refuge'}
               </p>
               <p className="text-xs text-slate-300 flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                {activeAssignment.deliveryLocation?.address}
+                {activeAssignment.deliveryLocation?.address || (typeof activeAssignment.shelterId === 'object' ? (activeAssignment.shelterId?.address || activeAssignment.shelterId?.location?.address) : '') || 'Intake Dock'}
               </p>
               {activeAssignment.notes && (
                 <p className="text-xs text-amber-300/90 bg-amber-500/10 p-2 rounded border border-amber-500/20">
@@ -384,9 +384,11 @@ export function RiderDashboard() {
                 <TableRow key={a.id}>
                   <TableCell className="font-mono text-xs text-slate-400">{a.id}</TableCell>
                   <TableCell className="font-medium text-slate-200">
-                    {a.donationTitle || 'Surplus Aid Goods'}
+                    {a.donationTitle || (typeof a.donationId === 'object' ? (a.donationId?.title || a.donationId?.aidType) : a.donationId) || 'Surplus Aid Goods'}
                   </TableCell>
-                  <TableCell className="text-slate-300">{a.shelterName || a.shelterId}</TableCell>
+                  <TableCell className="text-slate-300">
+                    {a.shelterName || (typeof a.shelterId === 'object' ? a.shelterId?.name : a.shelterId) || 'Relief Shelter'}
+                  </TableCell>
                   <TableCell>
                     <StatusBadge status={a.status} size="sm" />
                   </TableCell>

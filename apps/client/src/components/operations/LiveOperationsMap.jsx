@@ -276,8 +276,11 @@ export function LiveOperationsMap({
         const distanceKm = calculateHaversineDistanceKm(pLat, pLng, dLat, dLng);
 
         // Find assigned rider location if in progress
+        const asgRdrId = typeof asg.riderId === 'object' && asg.riderId !== null
+          ? (asg.riderId.id || asg.riderId._id)
+          : asg.riderId;
         const assignedRider = validRiders.find(
-          (r) => r.id === asg.riderId || r.userId === asg.riderId
+          (r) => r.id === asgRdrId || r.userId === asgRdrId
         );
         const riderCoord =
           assignedRider && isValidCoord(assignedRider.lat, assignedRider.lng)
@@ -546,7 +549,9 @@ export function LiveOperationsMap({
                       <div className="p-1 text-xs">
                         <div className="font-bold text-indigo-400">Waypoint [B]: Shelter Destination</div>
                         <div className="text-white mt-0.5">{asg.deliveryLocation?.address}</div>
-                        <div className="text-slate-400 mt-1">Shelter: {asg.shelterName || asg.shelterId}</div>
+                        <div className="text-slate-400 mt-1">
+                          Shelter: {asg.shelterName || (typeof asg.shelterId === 'object' ? asg.shelterId?.name : asg.shelterId) || 'Shelter Intake'}
+                        </div>
                       </div>
                     </Popup>
                   </Marker>

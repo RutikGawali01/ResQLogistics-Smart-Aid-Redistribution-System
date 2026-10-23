@@ -4,6 +4,63 @@ import { canTransitionAssignment, ASSIGNMENT_STATUS } from '@aidflow/shared';
 
 let inMemoryAssignments = [...MOCK_ASSIGNMENTS];
 
+/**
+ * Normalizes an assignment document to ensure shelterName, donationTitle, riderName,
+ * and string IDs are always populated, preventing raw Mongoose populated objects
+ * from being rendered as React children.
+ */
+export function normalizeAssignment(a) {
+  if (!a || typeof a !== 'object') return a;
+
+  const shelterObj = typeof a.shelterId === 'object' && a.shelterId !== null ? a.shelterId : null;
+  const donationObj = typeof a.donationId === 'object' && a.donationId !== null ? a.donationId : null;
+  const riderObj = typeof a.riderId === 'object' && a.riderId !== null ? a.riderId : null;
+
+  const shelterName =
+    a.shelterName ||
+    shelterObj?.name ||
+    'Downtown Hope Refuge';
+
+  const donationTitle =
+    a.donationTitle ||
+    donationObj?.title ||
+    donationObj?.aidType ||
+    'Surplus Aid Package';
+
+  const riderName =
+    a.riderName ||
+    riderObj?.name ||
+    null;
+
+  const pickupLocation = a.pickupLocation || donationObj?.pickupLocation || {
+    address: 'Pickup Depot',
+    latitude: 37.7749,
+    longitude: -122.4194
+  };
+
+  const deliveryLocation = a.deliveryLocation || {
+    address: shelterObj?.address || shelterObj?.location?.address || 'Shelter Intake Dock',
+    latitude: shelterObj?.location?.latitude || 37.789,
+    longitude: shelterObj?.location?.longitude || -122.401
+  };
+
+  return {
+    ...a,
+    id: a.id || a._id,
+    shelterName,
+    donationTitle,
+    riderName,
+    pickupLocation,
+    deliveryLocation,
+    shelterId: shelterObj ? (shelterObj.id || shelterObj._id) : a.shelterId,
+    donationId: donationObj ? (donationObj.id || donationObj._id) : a.donationId,
+    riderId: riderObj ? (riderObj.id || riderObj._id) : a.riderId,
+    shelter: shelterObj || a.shelter,
+    donation: donationObj || a.donation,
+    rider: riderObj || a.rider
+  };
+}
+
 export const assignmentsService = {
   /**
    * Retrieves delivery assignments.
@@ -15,7 +72,7 @@ export const assignmentsService = {
       if (status) filtered = filtered.filter((a) => a.status === status);
       if (riderId) filtered = filtered.filter((a) => a.riderId === riderId);
       if (shelterId) filtered = filtered.filter((a) => a.shelterId === shelterId);
-      return { success: true, data: filtered, isMock: true };
+      return { success: true, data: filtered.map(normalizeAssignment), isMock: true };
     }
 
     try {
@@ -24,7 +81,9 @@ export const assignmentsService = {
       if (riderId) params.riderId = riderId;
       if (shelterId) params.shelterId = shelterId;
       const res = await apiClient.get('/assignments', { params });
-      return { success: true, data: res.data?.data || res.data, isMock: false };
+      const raw = res.data?.data || res.data || [];
+      const normalized = Array.isArray(raw) ? raw.map(normalizeAssignment) : raw;
+      return { success: true, data: normalized, isMock: false };
     } catch (err) {
       if (err.status >= 400 && err.status < 500) {
         return {
@@ -40,7 +99,7 @@ export const assignmentsService = {
       if (status) filtered = filtered.filter((a) => a.status === status);
       if (riderId) filtered = filtered.filter((a) => a.riderId === riderId);
       if (shelterId) filtered = filtered.filter((a) => a.shelterId === shelterId);
-      return { success: true, data: filtered, isMock: true, fallback: true };
+      return { success: true, data: filtered.map(normalizeAssignment), isMock: true, fallback: true };
     }
   },
 
@@ -57,7 +116,8 @@ export const assignmentsService = {
 
     try {
       const res = await apiClient.get(`/assignments/${id}`);
-      return { success: true, data: res.data?.data || res.data, isMock: false };
+      const raw = res.data?.data || res.data;
+      return { success: true, data: normalizeAssignment(raw), isMock: false };
     } catch (err) {
       if (err.status >= 400 && err.status < 500) {
         return {
@@ -71,7 +131,7 @@ export const assignmentsService = {
       }
       const item = inMemoryAssignments.find((a) => a.id === id);
       return item
-        ? { success: true, data: item, isMock: true, fallback: true }
+        ? { success: true, data: normalizeAssignment(item), isMock: true, fallback: true }
         : { success: false, error: err.message || 'Assignment not found', isMock: false };
     }
   },
@@ -116,7 +176,7 @@ export const assignmentsService = {
       });
 
       const updated = inMemoryAssignments.find((a) => a.id === assignmentId);
-      return { success: true, data: updated, isMock: true };
+      return { success: true, data: normalizeAssignment(updated), isMock: true };
     }
 
     try {
@@ -125,7 +185,8 @@ export const assignmentsService = {
         reason,
         coordinates
       });
-      return { success: true, data: res.data?.data || res.data, isMock: false };
+      const raw = res.data?.data || res.data;
+      return { success: true, data: normalizeAssignment(raw), isMock: false };
     } catch (err) {
       return {
         success: false,

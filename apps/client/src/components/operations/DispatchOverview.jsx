@@ -135,9 +135,9 @@ export function DispatchOverview({
       // Search query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchTitle = (asg.donationTitle || '').toLowerCase().includes(q);
-        const matchShelter = (asg.shelterName || asg.shelterId || '').toLowerCase().includes(q);
-        const matchRider = (asg.riderName || asg.riderId || '').toLowerCase().includes(q);
+        const matchTitle = (asg.donationTitle || (typeof asg.donationId === 'object' ? asg.donationId?.title : asg.donationId) || '').toLowerCase().includes(q);
+        const matchShelter = (asg.shelterName || (typeof asg.shelterId === 'object' ? asg.shelterId?.name : asg.shelterId) || '').toLowerCase().includes(q);
+        const matchRider = (asg.riderName || (typeof asg.riderId === 'object' ? asg.riderId?.name : asg.riderId) || '').toLowerCase().includes(q);
         const matchId = (asg.id || '').toLowerCase().includes(q);
         if (!matchTitle && !matchShelter && !matchRider && !matchId) return false;
       }
@@ -331,7 +331,7 @@ export function DispatchOverview({
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Assigned Courier:</span>
                       <span className="font-medium text-slate-200">
-                        {asg.riderName || (asg.riderId ? `#${asg.riderId.slice(-6)}` : 'Unassigned')}
+                        {asg.riderName || (typeof asg.riderId === 'object' ? asg.riderId?.name : (asg.riderId ? `#${String(asg.riderId).slice(-6)}` : 'Unassigned'))}
                       </span>
                     </div>
 
