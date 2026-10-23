@@ -315,8 +315,18 @@ router.patch(
       if (isDb) {
         if (mongoose.isValidObjectId(id)) {
           assignment = await Assignment.findById(id);
-        } else if (id === 'asg_mock_01' || id === 'asg_seed_01' || id.startsWith('asg_')) {
+        }
+        if (!assignment && (id === 'asg_mock_01' || id === 'asg_seed_01' || id.startsWith('asg_'))) {
           assignment = await Assignment.findOne();
+        }
+        if (!assignment && req.user.role === ROLES.SHELTER_MANAGER) {
+          const myShelter = await Shelter.findOne({ managerId: req.user.id });
+          if (myShelter) {
+            assignment = await Assignment.findOne({
+              shelterId: myShelter._id,
+              status: { $nin: ['DELIVERED', 'CANCELLED', 'FAILED'] }
+            });
+          }
         }
       } else {
         assignment = inMemoryAssignments.find((a) => a.id === id);

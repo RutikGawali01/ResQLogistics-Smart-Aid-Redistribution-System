@@ -175,7 +175,16 @@ router.patch(
       const { currentDemand, receivingCapacity, mealsNeededPerDay } = req.validatedBody;
 
       if (isDatabaseConnected()) {
-        const shelter = await Shelter.findById(id);
+        let shelter = null;
+        if (mongoose.isValidObjectId(id)) {
+          shelter = await Shelter.findById(id);
+        }
+        if (!shelter && req.user.role === ROLES.SHELTER_MANAGER) {
+          shelter = await Shelter.findOne({ managerId: req.user.id });
+        } else if (!shelter && (req.user.role === ROLES.ADMIN || id.startsWith('shl_'))) {
+          shelter = await Shelter.findOne();
+        }
+
         if (!shelter) {
           return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
         }
@@ -262,7 +271,16 @@ router.patch(
       const { isOpen, urgencyLevel } = req.validatedBody;
 
       if (isDatabaseConnected()) {
-        const shelter = await Shelter.findById(id);
+        let shelter = null;
+        if (mongoose.isValidObjectId(id)) {
+          shelter = await Shelter.findById(id);
+        }
+        if (!shelter && req.user.role === ROLES.SHELTER_MANAGER) {
+          shelter = await Shelter.findOne({ managerId: req.user.id });
+        } else if (!shelter && (req.user.role === ROLES.ADMIN || id.startsWith('shl_'))) {
+          shelter = await Shelter.findOne();
+        }
+
         if (!shelter) {
           return res.fail(ERROR_CODES.NOT_FOUND, `Shelter '${id}' not found`, null, 404);
         }

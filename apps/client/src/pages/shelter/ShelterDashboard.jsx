@@ -177,9 +177,11 @@ export function ShelterDashboard() {
         ? 'Shelter marked as OPEN for community relief and aid deliveries.'
         : 'Shelter marked as TEMPORARILY CLOSED. Dispatch paused.';
       setActionNotice(statusMsg);
+      loadData();
     } else {
       setIsOpen(!nextState); // revert on failure
       setError(res.error || 'Failed to update shelter intake status on server');
+      loadData();
     }
   };
 
@@ -191,9 +193,11 @@ export function ShelterDashboard() {
     setActionNotice(null);
     setError(null);
 
+    const shelterId = shelter.id || shelter._id;
+
     try {
       const res = await sheltersService.updateDemand(
-        shelter.id,
+        shelterId,
         {
           mealsNeededPerDay: Number(mealsNeeded),
           currentDemand: Number(mealsNeeded),
@@ -202,28 +206,19 @@ export function ShelterDashboard() {
         { forceMock }
       );
 
-      const urgRes = await sheltersService.updateStatus(shelter.id, { urgencyLevel }, { forceMock });
+      const urgRes = await sheltersService.updateStatus(shelterId, { urgencyLevel }, { forceMock });
 
       if (res.success && urgRes.success) {
         setActionNotice('Receiving capacity, resource availability, and urgency levels successfully updated on server.');
-        setShelter((prev) => ({
-          ...prev,
-          capacity: {
-            ...prev?.capacity,
-            currentOccupancy: Number(currentOccupancy),
-            maxCapacity: Number(maxCapacity),
-            mealsNeededPerDay: Number(mealsNeeded)
-          },
-          currentDemand: Number(mealsNeeded),
-          receivingCapacity: Number(maxCapacity),
-          urgencyLevel
-        }));
+        loadData();
       } else {
         const errorMsg = res.error || urgRes.error || 'Failed to update capacity on server';
         setError(errorMsg);
+        loadData();
       }
     } catch (err) {
       setError(err.message || 'Capacity update error');
+      loadData();
     } finally {
       setIsUpdating(false);
     }
@@ -262,10 +257,12 @@ export function ShelterDashboard() {
       { reason: 'Confirmed intake by Shelter Supervisor', forceMock }
     );
     if (res.success) {
-      setIncomingDeliveries((prev) => prev.filter((a) => a.id !== assignmentId));
+      setIncomingDeliveries((prev) => prev.filter((a) => (a.id || a._id) !== assignmentId));
       setActionNotice(`Shipment #${assignmentId} confirmed received into kitchen pantry.`);
+      loadData();
     } else {
       setError(res.error || 'Failed to confirm intake on server');
+      loadData();
     }
   };
 
