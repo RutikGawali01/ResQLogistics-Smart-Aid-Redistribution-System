@@ -318,6 +318,12 @@ router.patch(
       // Validate the proposed state transition
       const validation = canTransitionAssignment(previousStatus, targetStatus);
       if (!validation.valid) {
+        if (previousStatus === targetStatus) {
+          return res.success(
+            assignment,
+            `Assignment is already in status ${targetStatus}`
+          );
+        }
         return res.fail(
           ERROR_CODES.INVALID_STATE_TRANSITION,
           validation.reason,

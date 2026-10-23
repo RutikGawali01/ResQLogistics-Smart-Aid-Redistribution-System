@@ -63,9 +63,9 @@ export function RiderDashboard() {
 
     const unsubOffered = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_OFFERED, (asg) => {
       if (asg) {
-        const id = asg.assignmentId || asg.id;
+        const id = asg.assignmentId || asg.id || asg._id;
         setAssignments((prev) => {
-          if (prev.some((a) => a.id === id)) return prev;
+          if (prev.some((a) => (a.id || a._id) === id)) return prev;
           return [asg, ...prev];
         });
         setActionSuccess('New delivery assignment offered to your queue!');
@@ -74,12 +74,12 @@ export function RiderDashboard() {
 
     const unsubState = subscribeToEvent(SOCKET_EVENTS.ASSIGNMENT_STATE_CHANGED, (asg) => {
       if (asg) {
-        const id = asg.assignmentId || asg.id;
+        const id = asg.assignmentId || asg.id || asg._id;
         setAssignments((prev) => {
-          const exists = prev.some((a) => a.id === id);
+          const exists = prev.some((a) => (a.id || a._id) === id);
           if (exists) {
             return prev.map((a) =>
-              a.id === id ? { ...a, ...asg, status: asg.newStatus || asg.status } : a
+              (a.id || a._id) === id ? { ...a, ...asg, status: asg.newStatus || asg.status } : a
             );
           }
           return [asg, ...prev];
@@ -110,7 +110,7 @@ export function RiderDashboard() {
       a.status !== ASSIGNMENT_STATUS.DELIVERED &&
       a.status !== ASSIGNMENT_STATUS.CANCELLED &&
       a.status !== ASSIGNMENT_STATUS.FAILED
-  ) || assignments[0];
+  ) || null;
 
   const completedAssignments = assignments.filter(
     (a) => a.status === ASSIGNMENT_STATUS.DELIVERED
@@ -123,16 +123,21 @@ export function RiderDashboard() {
 
     // Current coordinates if available from rider profile or active assignment
     const coords = riderInfo?.currentLocation || activeAssignment.pickupLocation;
-    const coordinates = coords ? { latitude: coords.latitude, longitude: coords.longitude } : null;
+    const hasValidCoords = coords && typeof coords.latitude === 'number' && typeof coords.longitude === 'number';
+    const coordinates = hasValidCoords
+      ? { latitude: Number(coords.latitude), longitude: Number(coords.longitude) }
+      : undefined;
+
+    const assignmentId = activeAssignment.id || activeAssignment._id;
 
     try {
-      const res = await assignmentsService.transitionState(activeAssignment.id, targetStatus, {
+      const res = await assignmentsService.transitionState(assignmentId, targetStatus, {
         coordinates,
         forceMock
       });
       if (res.success && res.data) {
         setAssignments((prev) =>
-          prev.map((a) => (a.id === activeAssignment.id ? res.data : a))
+          prev.map((a) => ((a.id || a._id) === assignmentId ? res.data : a))
         );
         setActionSuccess(`Status transitioned to ${targetStatus}`);
 
@@ -140,12 +145,15 @@ export function RiderDashboard() {
         if (coordinates) {
           await ridersService.updateLocation(riderTargetId, coordinates, { forceMock });
         }
+        loadData(true);
       } else {
         const errMsg = res.details?.reason || res.error || 'State transition failed';
         setError(errMsg);
+        loadData(true);
       }
     } catch (err) {
       setError(err.message || 'State transition failed');
+      loadData(true);
     }
   };
 
