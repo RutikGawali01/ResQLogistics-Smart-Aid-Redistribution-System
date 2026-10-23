@@ -125,7 +125,7 @@ export const donationsService = {
    * Reserves surplus aid for a shelter.
    * Calls POST /api/donations/:id/reserve via Axios.
    */
-  async reserveDonation(id, { shelterId, requestedQuantity, quantity } = {}, { forceMock = false } = {}) {
+  async reserveDonation(id, { shelterId, requestedQuantity, quantity, title } = {}, { forceMock = false } = {}) {
     const qty = Number(requestedQuantity || quantity);
     if (forceMock) {
       const item = inMemoryDonations.find((d) => d.id === id);

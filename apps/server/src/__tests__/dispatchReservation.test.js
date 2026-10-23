@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import mongoose from 'mongoose';
 import request from 'supertest';
 import { createApp } from '../app.js';
 import { connectDatabase, disconnectDatabase } from '../config/database.js';
@@ -172,7 +173,7 @@ describe('AidFlow Dispatch Engine & Concurrency-Safe Reservation Suite', () => {
       });
 
       const rider = await Rider.create({
-        userId: testUser._id,
+        userId: new mongoose.Types.ObjectId(),
         name: 'Test Courier',
         capacity: 50,
         availableCapacity: 50,
