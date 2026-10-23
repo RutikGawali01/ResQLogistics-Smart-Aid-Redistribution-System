@@ -1,32 +1,36 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authService } from '../services/authService.js';
-import { MOCK_USERS } from '../services/mockData.js';
 import { ROLES } from '@aidflow/shared';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  // Initialize with persisted session or default mock admin for immediate previewability
+  // Initialize with persisted session if authentic, otherwise null
   const [user, setUser] = useState(() => {
-    const existing = authService.getCurrentUser();
-    if (existing) return existing;
-    // Default to mock admin so first-time load immediately works out-of-the-box
-    const defaultUser = { ...MOCK_USERS.ADMIN, isMock: true };
     try {
-      localStorage.setItem('aidflow_user', JSON.stringify(defaultUser));
-      localStorage.setItem('aidflow_token', 'mock_jwt_token_ADMIN_default');
-      localStorage.setItem('aidflow_is_mock_auth', 'true');
+      const isMock = localStorage.getItem('aidflow_is_mock_auth') === 'true';
+      const token = localStorage.getItem('aidflow_token');
+      if (isMock || (token && token.startsWith('mock_jwt_token_'))) {
+        authService.logout();
+        return null;
+      }
     } catch {
-      // localStorage may fail in restricted sandboxes
+      // Ignore storage errors
     }
-    return defaultUser;
+    const existing = authService.getCurrentUser();
+    return existing && !existing.isMock ? existing : null;
   });
 
-  const [token, setToken] = useState(() => authService.getToken() || 'mock_jwt_token_ADMIN_default');
-  const [isMockAuth, setIsMockAuth] = useState(() => {
-    const existing = authService.getCurrentUser();
-    return existing ? authService.isMockAuth() : true;
+  const [token, setToken] = useState(() => {
+    try {
+      const stored = authService.getToken();
+      return stored && !stored.startsWith('mock_jwt_token_') ? stored : null;
+    } catch {
+      return null;
+    }
   });
+
+  const [isMockAuth, setIsMockAuth] = useState(false);
 
   // Global toggle for mock data fallback across all dashboards
   const [forceMock, setForceMock] = useState(() => {
@@ -113,16 +117,23 @@ export function AuthProvider({ children }) {
   }, []);
 
   /**
-   * Fast-switch helper for developers/evaluators to immediately experience different role views
+   * Fast-switch helper: Authenticates against the real MongoDB account for that role
    */
-  const switchRole = useCallback((newRole) => {
-    if (!MOCK_USERS[newRole]) return;
-    const mockUser = { ...MOCK_USERS[newRole], isMock: true };
-    setUser(mockUser);
-    setIsMockAuth(true);
-    localStorage.setItem('aidflow_user', JSON.stringify(mockUser));
-    localStorage.setItem('aidflow_is_mock_auth', 'true');
-  }, []);
+  const switchRole = useCallback(
+    async (newRole) => {
+      const roleAccounts = {
+        ADMIN: { email: 'admin@aidflow.org', password: 'AidFlowAdmin!2026', role: 'ADMIN' },
+        DONOR: { email: 'sarah@freshmarket.com', password: 'Password123!', role: 'DONOR' },
+        RIDER: { email: 'carlos.rider@aidflow.org', password: 'Password123!', role: 'RIDER' },
+        SHELTER_MANAGER: { email: 'elena@downtownhope.org', password: 'Password123!', role: 'SHELTER_MANAGER' }
+      };
+      const creds = roleAccounts[newRole];
+      if (creds) {
+        return await login(creds);
+      }
+    },
+    [login]
+  );
 
   const toggleForceMock = useCallback(() => {
     setForceMock((prev) => {

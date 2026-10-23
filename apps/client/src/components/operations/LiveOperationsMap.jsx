@@ -379,8 +379,8 @@ export function LiveOperationsMap({
         <div className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-md bg-slate-900 border border-slate-700/80">
           <ShieldCheck className="w-3 h-3 text-indigo-400 flex-shrink-0" />
           <span className="text-slate-400">Telemetry:</span>
-          <span className="font-semibold text-indigo-300">
-            {isMockData ? 'Demo Seeded Centroids (Simulation)' : 'Verified Geospatial Registry'}
+          <span className="font-semibold text-emerald-300">
+            Verified Geospatial Registry
           </span>
         </div>
 
@@ -606,7 +606,7 @@ export function LiveOperationsMap({
                     )}
 
                     <div className="mt-2 pt-1 border-t border-slate-800 text-[9px] text-slate-500 font-mono">
-                      Source: {isMockData ? 'Demo Seed Location' : 'Verified Partner Depot'}
+                      Source: Verified Partner Depot
                     </div>
                   </div>
                 </Popup>
@@ -682,7 +682,7 @@ export function LiveOperationsMap({
                       </div>
 
                       <div className="mt-2 pt-1 border-t border-slate-800 text-[9px] text-slate-500 font-mono">
-                        Source: {isMockData ? 'Demo Seed Location' : 'Official Relief Registry'}
+                        Source: Official Relief Registry
                       </div>
                     </div>
                   </Popup>

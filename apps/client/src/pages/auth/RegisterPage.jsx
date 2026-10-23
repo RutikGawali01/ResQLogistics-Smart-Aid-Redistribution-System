@@ -20,7 +20,6 @@ export function RegisterPage() {
     confirmPassword: ''
   });
 
-  const [isMockMode, setIsMockMode] = useState(false);
   const [formValidation, setFormValidation] = useState(null);
 
   const handleChange = (field, value) => {
@@ -43,17 +42,14 @@ export function RegisterPage() {
       return;
     }
 
-    const result = await register(
-      {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        role: formData.role,
-        organization: formData.organization || undefined,
-        password: formData.password
-      },
-      { forceMock: isMockMode }
-    );
+    const result = await register({
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      role: formData.role,
+      organization: formData.organization || undefined,
+      password: formData.password
+    });
 
     if (result.success) {
       const roleRoutes = {

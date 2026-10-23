@@ -14,7 +14,6 @@ export function LoginPage() {
   const [email, setEmail] = useState('admin@aidflow.org');
   const [password, setPassword] = useState('AidFlowAdmin!2026');
   const [selectedRole, setSelectedRole] = useState(ROLES.ADMIN);
-  const [isMockMode, setIsMockMode] = useState(false);
 
   const demoAccounts = [
     { role: ROLES.ADMIN, email: 'admin@aidflow.org', label: 'Admin', icon: Shield },
@@ -38,7 +37,7 @@ export function LoginPage() {
       email,
       password,
       role: selectedRole,
-      forceMock: isMockMode
+      forceMock: false
     });
 
     if (result.success) {
@@ -85,41 +84,13 @@ export function LoginPage() {
 
         {/* Login Form Container */}
         <div className="glass-card rounded-2xl border border-slate-800/90 bg-slate-900/70 p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
-          {/* Mode Switcher Pill */}
-          <div className="mb-6 p-1 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center text-xs">
-            <button
-              type="button"
-              onClick={() => setIsMockMode(true)}
-              className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
-                isMockMode
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Demo / Mock Auth</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsMockMode(false)}
-              className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
-                !isMockMode
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Server className="w-3.5 h-3.5" />
-              <span>Live Backend API</span>
-            </button>
-          </div>
-
           {/* Quick-fill Role Selector (for testing all 4 roles) */}
           <div className="mb-6 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                1-Click Demo Profiles
+                1-Click Role Profiles
               </span>
-              <span className="text-[10px] text-amber-400">Decoupled preview</span>
+              <span className="text-[10px] text-emerald-400 font-medium">Live MongoDB Accounts</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {demoAccounts.map((acc) => {

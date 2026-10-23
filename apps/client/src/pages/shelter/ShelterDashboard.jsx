@@ -55,28 +55,7 @@ export function ShelterDashboard() {
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Food & Aid Demand publication state
-  const [publishedDemands, setPublishedDemands] = useState([
-    {
-      id: 'dmd_01',
-      category: 'PREPARED_MEALS',
-      quantity: 80,
-      unit: 'servings',
-      urgency: 'HIGH',
-      description: 'Hot nutritious dinners for evening intake',
-      createdAt: new Date().toISOString(),
-      status: 'ACTIVE_DEMAND'
-    },
-    {
-      id: 'dmd_02',
-      category: 'PRODUCE',
-      quantity: 30,
-      unit: 'kg',
-      urgency: 'MEDIUM',
-      description: 'Fresh vegetables & fruit for community kitchen salad bar',
-      createdAt: new Date().toISOString(),
-      status: 'MATCHED'
-    }
-  ]);
+  const [publishedDemands, setPublishedDemands] = useState([]);
   const [newDemandCategory, setNewDemandCategory] = useState('PREPARED_MEALS');
   const [newDemandQuantity, setNewDemandQuantity] = useState('');
   const [newDemandUnit, setNewDemandUnit] = useState('servings');
@@ -89,12 +68,15 @@ export function ShelterDashboard() {
     setError(null);
     try {
       const [shlRes, asgRes, donRes] = await Promise.all([
-        sheltersService.getShelters({ forceMock }),
-        assignmentsService.getAssignments({ forceMock }),
-        donationsService.getDonations({ forceMock, status: 'AVAILABLE' })
+        sheltersService.getShelters(),
+        assignmentsService.getAssignments(),
+        donationsService.getDonations({ status: 'AVAILABLE' })
       ]);
 
-      const myShelter = shlRes.data?.[0] || null;
+      const myShelter =
+        shlRes.data?.find((s) => s.managerId === user?.id || s.managerId === user?._id) ||
+        shlRes.data?.[0] ||
+        null;
       setShelter(myShelter);
       if (myShelter) {
         setCurrentOccupancy(myShelter.capacity?.currentOccupancy ?? 88);

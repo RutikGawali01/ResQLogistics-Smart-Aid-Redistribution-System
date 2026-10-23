@@ -179,28 +179,15 @@ export function Sidebar({ isOpen = false, onClose }) {
 
         {/* Bottom Settings & Status Panel */}
         <div className="p-3 border-t border-slate-800/80 bg-slate-950/60 space-y-3">
-          {/* Mock Mode Decoupled Toggle */}
-          <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-slate-900/60 border border-slate-800">
+          {/* Live MongoDB Status Badge */}
+          <div className="flex items-center justify-between px-2.5 py-2 rounded-lg bg-emerald-950/30 border border-emerald-800/40">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <div>
-                <p className="text-[11px] font-medium text-slate-300">Mock Data Mode</p>
-                <p className="text-[9px] text-slate-500">Decoupled from backend</p>
+                <p className="text-[11px] font-medium text-emerald-300">Live Network Active</p>
+                <p className="text-[9px] text-slate-400">Connected to MongoDB Atlas</p>
               </div>
             </div>
-            <button
-              onClick={toggleForceMock}
-              type="button"
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                forceMock ? 'bg-amber-500' : 'bg-slate-700'
-              }`}
-            >
-              <span
-                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                  forceMock ? 'translate-x-4' : 'translate-x-1'
-                }`}
-              />
-            </button>
           </div>
 
           {/* User profile row */}

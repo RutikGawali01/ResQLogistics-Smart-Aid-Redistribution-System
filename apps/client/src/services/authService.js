@@ -138,9 +138,13 @@ export const authService = {
     try {
       const userStr = localStorage.getItem(USER_KEY);
       const isMock = localStorage.getItem(MOCK_AUTH_KEY) === 'true';
-      if (!userStr) return null;
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!userStr || isMock || (token && token.startsWith('mock_jwt_token_'))) {
+        return null;
+      }
       const user = JSON.parse(userStr);
-      return { ...user, isMock };
+      if (user.isMock) return null;
+      return { ...user, isMock: false };
     } catch {
       return null;
     }
@@ -148,7 +152,9 @@ export const authService = {
 
   getToken() {
     try {
-      return localStorage.getItem(TOKEN_KEY);
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (token && token.startsWith('mock_jwt_token_')) return null;
+      return token;
     } catch {
       return null;
     }
@@ -158,7 +164,7 @@ export const authService = {
     try {
       return localStorage.getItem(MOCK_AUTH_KEY) === 'true';
     } catch {
-      return true;
+      return false;
     }
   }
 };

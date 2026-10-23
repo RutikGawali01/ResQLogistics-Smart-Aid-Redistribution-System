@@ -25,23 +25,14 @@ export const donationsService = {
       const res = await apiClient.get('/donations', { params });
       return { success: true, data: res.data?.data || res.data, isMock: false };
     } catch (err) {
-      // If client or auth error (4xx), return error directly
-      if (err.status >= 400 && err.status < 500) {
-        return {
-          success: false,
-          error: err.message,
-          code: err.code,
-          status: err.status,
-          details: err.details,
-          isMock: false
-        };
-      }
-      // Connection unreachable fallback to ensure interface continuity
-      let filtered = [...inMemoryDonations];
-      if (category) filtered = filtered.filter((d) => d.category === category || d.aidType === category);
-      if (status) filtered = filtered.filter((d) => d.status === status);
-      if (donorId) filtered = filtered.filter((d) => d.donorId === donorId);
-      return { success: true, data: filtered, isMock: true, fallback: true };
+      return {
+        success: false,
+        error: err.message || 'Failed to retrieve donations',
+        code: err.code || 'REQUEST_FAILED',
+        status: err.status || 500,
+        details: err.details || null,
+        isMock: false
+      };
     }
   },
 
@@ -60,20 +51,14 @@ export const donationsService = {
       const res = await apiClient.get(`/donations/${id}`);
       return { success: true, data: res.data?.data || res.data, isMock: false };
     } catch (err) {
-      if (err.status >= 400 && err.status < 500) {
-        return {
-          success: false,
-          error: err.message,
-          code: err.code,
-          status: err.status,
-          details: err.details,
-          isMock: false
-        };
-      }
-      const item = inMemoryDonations.find((d) => d.id === id);
-      return item
-        ? { success: true, data: item, isMock: true, fallback: true }
-        : { success: false, error: err.message || 'Donation not found', isMock: false };
+      return {
+        success: false,
+        error: err.message || 'Failed to retrieve donation',
+        code: err.code || 'REQUEST_FAILED',
+        status: err.status || 500,
+        details: err.details || null,
+        isMock: false
+      };
     }
   },
 

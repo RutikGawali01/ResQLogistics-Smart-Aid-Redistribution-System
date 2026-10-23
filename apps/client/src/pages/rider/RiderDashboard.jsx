@@ -36,15 +36,15 @@ export function RiderDashboard() {
   const [actionSuccess, setActionSuccess] = useState(null);
   const [telemetryPingMsg, setTelemetryPingMsg] = useState(null);
 
-  const riderTargetId = riderInfo?.id || riderInfo?._id || user?.id || 'usr_rider_01';
+  const riderTargetId = riderInfo?.id || riderInfo?._id || user?.id || user?._id;
 
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
     try {
       const [asgRes, rdrRes] = await Promise.all([
-        assignmentsService.getAssignments({ forceMock }),
-        ridersService.getRiderById(user?.id || 'usr_rider_01', { forceMock })
+        assignmentsService.getAssignments(),
+        riderTargetId ? ridersService.getRiderById(riderTargetId) : Promise.resolve({ data: null })
       ]);
       setAssignments(asgRes.data || []);
       setRiderInfo(rdrRes.data || null);
@@ -208,7 +208,7 @@ export function RiderDashboard() {
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              Active Courier • ID: {user?.id || 'rdr_mock_01'} • 4.95 Rating
+              Active Courier • ID: {user?.id || user?._id || 'Verified'} • 4.95 Rating
             </p>
           </div>
         </div>

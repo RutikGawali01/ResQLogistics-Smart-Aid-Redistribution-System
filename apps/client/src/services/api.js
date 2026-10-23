@@ -14,8 +14,8 @@ export const api = {
     try {
       const res = await apiClient.get('/health', { timeout: 3000 });
       return { success: true, data: res.data?.data || res.data, isMock: false };
-    } catch {
-      return { success: true, data: MOCK_DATA_COMPAT.health, isMock: true };
+    } catch (err) {
+      return { success: false, error: err.message || 'Server connection failed', isMock: false };
     }
   },
 

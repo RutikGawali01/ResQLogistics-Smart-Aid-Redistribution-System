@@ -10,8 +10,8 @@ export const analyticsService = {
     try {
       const res = await apiClient.get('/analytics/telemetry');
       return { success: true, data: res.data?.data || res.data, isMock: false };
-    } catch {
-      return { success: true, data: MOCK_ANALYTICS, isMock: true };
+    } catch (err) {
+      return { success: false, error: err.message || 'Telemetry unavailable', isMock: false };
     }
   }
 };

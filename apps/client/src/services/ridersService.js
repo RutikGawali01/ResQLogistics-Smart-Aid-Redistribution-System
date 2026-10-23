@@ -23,20 +23,14 @@ export const ridersService = {
       const res = await apiClient.get('/riders', { params });
       return { success: true, data: res.data?.data || res.data, isMock: false };
     } catch (err) {
-      if (err.status >= 400 && err.status < 500) {
-        return {
-          success: false,
-          error: err.message,
-          code: err.code,
-          status: err.status,
-          details: err.details,
-          isMock: false
-        };
-      }
-      let filtered = [...inMemoryRiders];
-      if (status) filtered = filtered.filter((r) => r.status === status);
-      if (vehicleType) filtered = filtered.filter((r) => r.vehicleType === vehicleType);
-      return { success: true, data: filtered, isMock: true, fallback: true };
+      return {
+        success: false,
+        error: err.message || 'Failed to retrieve riders',
+        code: err.code || 'REQUEST_FAILED',
+        status: err.status || 500,
+        details: err.details || null,
+        isMock: false
+      };
     }
   },
 
@@ -56,20 +50,14 @@ export const ridersService = {
       const res = await apiClient.get(`/riders/${id}`);
       return { success: true, data: res.data?.data || res.data, isMock: false };
     } catch (err) {
-      if (err.status >= 400 && err.status < 500) {
-        return {
-          success: false,
-          error: err.message,
-          code: err.code,
-          status: err.status,
-          details: err.details,
-          isMock: false
-        };
-      }
-      const item = inMemoryRiders.find((r) => r.id === id || r.userId === id);
-      return item
-        ? { success: true, data: item, isMock: true, fallback: true }
-        : { success: false, error: err.message || 'Rider not found', isMock: false };
+      return {
+        success: false,
+        error: err.message || 'Failed to retrieve rider',
+        code: err.code || 'REQUEST_FAILED',
+        status: err.status || 500,
+        details: err.details || null,
+        isMock: false
+      };
     }
   },
 

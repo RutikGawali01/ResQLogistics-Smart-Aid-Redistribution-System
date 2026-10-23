@@ -88,27 +88,7 @@ export function AdminDashboard() {
         }));
         setAlerts(formattedAlerts);
       } else {
-        // Default telemetry alerts
-        setAlerts([
-          {
-            id: 'alt_01',
-            title: 'High Urgency Shelter Surge: Downtown Hope Refuge',
-            description: 'Shelter reached 88% bed occupancy and reported understocked meal pantry (150 meals needed).',
-            severity: 'CRITICAL',
-            source: 'SHELTER_CAPACITY',
-            timestamp: '12 mins ago',
-            resolved: false
-          },
-          {
-            id: 'alt_02',
-            title: 'Perishable Aid Expiration Warning: Organic Produce Crate',
-            description: 'Donation is perishable. Prioritizing expedited routing before safety deadline.',
-            severity: 'WARNING',
-            source: 'DONATION_DISPATCH',
-            timestamp: '28 mins ago',
-            resolved: false
-          }
-        ]);
+        setAlerts([]);
       }
 
       if (evtRes.data && evtRes.data.length > 0) {
@@ -122,24 +102,7 @@ export function AdminDashboard() {
         }));
         setRecentEvents(formattedEvents);
       } else {
-        setRecentEvents([
-          {
-            id: 'evt_01',
-            type: 'ASSIGNMENT_STATE_CHANGED',
-            entity: 'Assignment #asg_seed_01',
-            description: 'Courier Carlos Ruiz marked shipment as ACCEPTED',
-            actor: 'Carlos Ruiz (RIDER)',
-            timestamp: 'Just now'
-          },
-          {
-            id: 'evt_02',
-            type: 'DONATION_CREATED',
-            entity: 'Donation #don_mock_01',
-            description: 'Sarah Jenkins registered 45 loaves of artisan bread',
-            actor: 'Sarah Jenkins (DONOR)',
-            timestamp: '14 mins ago'
-          }
-        ]);
+        setRecentEvents([]);
       }
     } catch (err) {
       setError(err.message || 'Failed to fetch operational telemetry');

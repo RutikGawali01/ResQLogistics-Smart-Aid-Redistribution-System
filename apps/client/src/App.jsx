@@ -16,7 +16,7 @@ import { DonorCreateDonationPage } from './pages/donor/DonorCreateDonationPage.j
 import { RiderDashboard } from './pages/rider/RiderDashboard.jsx';
 import { ShelterDashboard } from './pages/shelter/ShelterDashboard.jsx';
 import { Dashboard as OverviewDashboard } from './pages/Dashboard.jsx';
-import { NotFoundPage } from './pages/NotFoundPage.jsx';
+import { LandingPage } from './pages/LandingPage.jsx';
 import { ROLES } from '@aidflow/shared';
 
 function RootRedirect() {
@@ -32,14 +32,14 @@ export function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public Auth Routes */}
+          {/* Public Landing & Auth Routes */}
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
           {/* Protected Dashboard Shell with Sidebar & Header */}
           <Route element={<DashboardLayout />}>
-            {/* Root index redirect based on user role */}
-            <Route path="/" element={<RootRedirect />} />
+            <Route path="/dashboard" element={<RootRedirect />} />
             <Route path="/overview" element={<OverviewDashboard />} />
 
             {/* ADMIN Routes */}

@@ -85,21 +85,14 @@ export const assignmentsService = {
       const normalized = Array.isArray(raw) ? raw.map(normalizeAssignment) : raw;
       return { success: true, data: normalized, isMock: false };
     } catch (err) {
-      if (err.status >= 400 && err.status < 500) {
-        return {
-          success: false,
-          error: err.message,
-          code: err.code,
-          status: err.status,
-          details: err.details,
-          isMock: false
-        };
-      }
-      let filtered = [...inMemoryAssignments];
-      if (status) filtered = filtered.filter((a) => a.status === status);
-      if (riderId) filtered = filtered.filter((a) => a.riderId === riderId);
-      if (shelterId) filtered = filtered.filter((a) => a.shelterId === shelterId);
-      return { success: true, data: filtered.map(normalizeAssignment), isMock: true, fallback: true };
+      return {
+        success: false,
+        error: err.message || 'Failed to retrieve assignments',
+        code: err.code || 'REQUEST_FAILED',
+        status: err.status || 500,
+        details: err.details || null,
+        isMock: false
+      };
     }
   },
 
@@ -119,20 +112,14 @@ export const assignmentsService = {
       const raw = res.data?.data || res.data;
       return { success: true, data: normalizeAssignment(raw), isMock: false };
     } catch (err) {
-      if (err.status >= 400 && err.status < 500) {
-        return {
-          success: false,
-          error: err.message,
-          code: err.code,
-          status: err.status,
-          details: err.details,
-          isMock: false
-        };
-      }
-      const item = inMemoryAssignments.find((a) => a.id === id);
-      return item
-        ? { success: true, data: normalizeAssignment(item), isMock: true, fallback: true }
-        : { success: false, error: err.message || 'Assignment not found', isMock: false };
+      return {
+        success: false,
+        error: err.message || 'Failed to retrieve assignment',
+        code: err.code || 'REQUEST_FAILED',
+        status: err.status || 500,
+        details: err.details || null,
+        isMock: false
+      };
     }
   },
 

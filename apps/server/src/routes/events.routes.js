@@ -33,4 +33,26 @@ router.get('/', authenticate, async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/events/alerts
+ * Query administrative alert events
+ */
+router.get('/alerts', authenticate, async (req, res, next) => {
+  try {
+    const { limit = 20 } = req.query;
+
+    if (isDatabaseConnected()) {
+      const alerts = await Event.find({ eventType: 'ADMIN_ALERT' })
+        .sort({ createdAt: -1 })
+        .limit(Math.min(Number(limit) || 20, 100));
+
+      return res.success(alerts, 'Administrative alerts retrieved', { total: alerts.length });
+    }
+
+    return res.success([], 'Alerts history (disconnected mode)', { total: 0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
