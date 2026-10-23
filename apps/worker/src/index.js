@@ -4,6 +4,8 @@ import { JobQueue } from './queue/JobQueue.js';
 import { expirationCheckerHandler } from './handlers/expirationChecker.js';
 import { dispatchOptimizerHandler } from './handlers/dispatchOptimizer.js';
 
+import { runPeriodicMaintenanceCycle } from './recovery/failureRecoveryService.js';
+
 async function startWorker() {
   console.log(`\n======================================================`);
   console.log(`⚙️  AidFlow Background Worker (${config.workerId})`);
@@ -15,6 +17,11 @@ async function startWorker() {
   try {
     await mongoose.connect(config.mongoUri, { serverSelectionTimeoutMS: 3000 });
     console.log('[Worker DB] Connected to MongoDB for persistent queue processing');
+
+    // Idempotent startup check: process any reservations or assignments that expired while worker was down
+    console.log('[Worker Startup] Executing immediate failure recovery cycle for offline-expired items...');
+    const bootRecovery = await runPeriodicMaintenanceCycle();
+    console.log(`[Worker Startup] Offline recovery complete: ${bootRecovery.expiredReservationsProcessed} expired reservations released.`);
   } catch (err) {
     console.warn(`[Worker DB] Warning: MongoDB not reachable (${err.message}).`);
     console.warn('[Worker DB] Worker operating in in-memory simulation mode.');

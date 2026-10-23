@@ -13,6 +13,7 @@ import { Shelter } from '../models/Shelter.js';
 import { Event } from '../models/Event.js';
 import { isDatabaseConnected } from '../config/database.js';
 import { broadcastEvent } from '../socket/index.js';
+import { handleShelterClosureOrFull } from '../../../worker/src/recovery/failureRecoveryService.js';
 
 const router = Router();
 
@@ -200,6 +201,14 @@ router.patch(
 
         await shelter.save();
 
+        if (receivingCapacity === 0) {
+          try {
+            await handleShelterClosureOrFull({ shelterId: shelter._id });
+          } catch (recErr) {
+            console.warn('[Shelter Route] Note on capacity recovery:', recErr.message);
+          }
+        }
+
         await Event.logEvent({
           entityType: 'SHELTER',
           entityId: shelter._id,
@@ -271,6 +280,14 @@ router.patch(
         if (urgencyLevel) shelter.urgencyLevel = urgencyLevel;
 
         await shelter.save();
+
+        if (isOpen === false) {
+          try {
+            await handleShelterClosureOrFull({ shelterId: shelter._id });
+          } catch (recErr) {
+            console.warn('[Shelter Route] Note on closure recovery:', recErr.message);
+          }
+        }
 
         await Event.logEvent({
           entityType: 'SHELTER',

@@ -1,16 +1,17 @@
+import { redispatchEligibleDonations } from '../recovery/failureRecoveryService.js';
+
 /**
  * Handler that processes background dispatch matching for unassigned donations and riders.
  */
 export async function dispatchOptimizerHandler(payload = {}) {
-  console.log('[DispatchOptimizer] Running automated courier dispatch matching cycle...');
+  const now = payload.now ? new Date(payload.now) : new Date();
+  console.log(`[DispatchOptimizer] Running automated courier dispatch cycle at ${now.toISOString()}...`);
 
-  const results = {
-    executedAt: new Date().toISOString(),
-    unassignedDonationsEvaluated: 1,
-    availableRidersAudited: 2,
-    proposedMatches: 1
-  };
+  const results = await redispatchEligibleDonations({ now });
 
-  console.log(`[DispatchOptimizer] Optimization complete. Matches calculated: ${results.proposedMatches}`);
+  console.log(
+    `[DispatchOptimizer] Optimization cycle complete. Success: ${results.success}. Plans: ${results.plans?.length || 0}`
+  );
+
   return results;
 }

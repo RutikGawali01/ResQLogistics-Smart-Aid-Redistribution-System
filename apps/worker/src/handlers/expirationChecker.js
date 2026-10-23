@@ -1,17 +1,21 @@
+import { runPeriodicMaintenanceCycle } from '../recovery/failureRecoveryService.js';
+
 /**
- * Handler that scans for donations close to expiration or stale reservations.
+ * Handler that scans for donations close to expiration, stale reservations,
+ * overdue assignments, and closed shelter recovery.
  */
 export async function expirationCheckerHandler(payload = {}) {
-  const thresholdHours = payload.thresholdHours || 12;
-  console.log(`[ExpirationChecker] Scanning for donations expiring within ${thresholdHours} hours...`);
+  const now = payload.now ? new Date(payload.now) : new Date();
+  console.log(`[ExpirationChecker] Executing periodic deadline & failure recovery cycle at ${now.toISOString()}...`);
 
-  // Simulated scan telemetry
-  const results = {
-    checkedAt: new Date().toISOString(),
-    nearExpirationFlagged: 0,
-    expiredReservationsReclaimed: 0
-  };
+  const results = await runPeriodicMaintenanceCycle({ now });
 
-  console.log(`[ExpirationChecker] Scan complete: ${results.nearExpirationFlagged} flagged, ${results.expiredReservationsReclaimed} reservations released.`);
+  console.log(
+    `[ExpirationChecker] Cycle complete: ` +
+    `${results.expiredReservationsProcessed} expired reservations released, ` +
+    `${results.stalledRidersReassigned} stalled riders reassigned, ` +
+    `${results.safetyExpiredAssignments} food-safety expired assignments flagged.`
+  );
+
   return results;
 }
