@@ -140,7 +140,7 @@ export function LoginPage() {
             <div className="flex items-center justify-between text-xs pt-1">
               <Checkbox id="remember-me" label="Remember this device" />
               <span className="text-slate-500 text-[11px]">
-                {isMockMode ? 'Mock Mode Enabled' : 'Connecting to ' + (import.meta.env.VITE_API_BASE_URL || '/api')}
+                Connecting to {import.meta.env.VITE_API_BASE_URL || '/api'}
               </span>
             </div>
 
@@ -151,7 +151,7 @@ export function LoginPage() {
               isLoading={loading}
               className="w-full mt-2"
             >
-              {isMockMode ? `Sign In as ${selectedRole}` : 'Sign In via Axios'}
+              Sign In as {selectedRole}
             </Button>
           </form>
 

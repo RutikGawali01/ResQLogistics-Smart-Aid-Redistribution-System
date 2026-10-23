@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { ROLES, ROLE_DEFINITIONS } from '@aidflow/shared';
 import { Button, Input, Select, FormField } from '../../components/ui/FormElements.jsx';
 import { Alert } from '../../components/ui/Alert.jsx';
-import { Activity, Shield, Sparkles, Server } from 'lucide-react';
+import { Activity, Shield } from 'lucide-react';
 
 export function RegisterPage() {
   const { register, loading, authError, setAuthError } = useAuth();
@@ -90,34 +90,6 @@ export function RegisterPage() {
         )}
 
         <div className="glass-card rounded-2xl border border-slate-800/90 bg-slate-900/70 p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
-          {/* Mode Switcher */}
-          <div className="mb-6 p-1 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center text-xs">
-            <button
-              type="button"
-              onClick={() => setIsMockMode(true)}
-              className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
-                isMockMode
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Simulate Mock Account</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsMockMode(false)}
-              className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
-                !isMockMode
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Server className="w-3.5 h-3.5" />
-              <span>Live Server Registration</span>
-            </button>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField label="Full Name" required>
@@ -198,7 +170,7 @@ export function RegisterPage() {
               isLoading={loading}
               className="w-full mt-3"
             >
-              {isMockMode ? `Create Simulated ${formData.role} Account` : 'Register via Axios'}
+              Create {ROLE_DEFINITIONS[formData.role]?.label || formData.role} Account
             </Button>
           </form>
 
