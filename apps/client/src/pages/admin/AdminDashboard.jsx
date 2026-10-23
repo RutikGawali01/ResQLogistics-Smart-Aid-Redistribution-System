@@ -16,7 +16,6 @@ import { LoadingState, EmptyState, ErrorState } from '../../components/ui/States
 import { MapPreview } from '../../components/MapPreview.jsx';
 import { AssignmentStateMachineVisualizer } from '../../components/AssignmentStateMachineVisualizer.jsx';
 import { ASSIGNMENT_STATUS, SOCKET_EVENTS } from '@aidflow/shared';
-import { connectSocket, subscribeToEvent } from '../../services/socket.js';
 import { Alert } from '../../components/ui/Alert.jsx';
 import {
   Package,

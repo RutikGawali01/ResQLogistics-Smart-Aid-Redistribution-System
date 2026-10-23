@@ -28,8 +28,6 @@ import {
   X,
   RefreshCw
 } from 'lucide-react';
-import { connectSocket, subscribeToEvent } from '../../services/socket.js';
-import { SOCKET_EVENTS } from '@aidflow/shared';
 
 export function DonorDashboard() {
   const { user, forceMock } = useAuth();
